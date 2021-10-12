@@ -4,7 +4,7 @@
 
 // DEFINES
 // Stepper data
-#define STP_RES_STOP 620
+#define FULL_RES_STOP 620
 #define MICROSTEPS 8
 
 // Stepper and stepper button pins
@@ -18,7 +18,9 @@
 // CALCULATIONS
 // Stepper calculations
 const unsigned int STP_HZ  = 800 * MICROSTEPS;
-const int32_t STP_RES = STP_RES_STOP * MICROSTEPS;
+const int32_t FULL_RES = FULL_RES_STOP * MICROSTEPS;
+const int32_t EPU_RES = FULL_RES * 0.9; 
+const int32_t OXY_RES = FULL_RES * 0.9;
 
 // DATA
 unsigned int oxy = 0; // Needles offset a little - design error
@@ -44,9 +46,9 @@ void set_primary_consoles_brightness(unsigned int value) { analogWrite(2, map(va
 void set_primary_instrpanel_brightness(unsigned int value) { analogWrite(3, map(value, 0, 65535, 0, 255)); }
 void set_flood_consoles_brightness(unsigned int value) { analogWrite(4, map(value, 0, 65535, 0, 255)); }
 void set_flood_instrpanel_brightness(unsigned int value) { analogWrite(5, map(value, 0, 65535, 0, 255)); }
-void onSysbPressureChange(unsigned int newValue) {hyd_b = map(newValue, 0, 65535, 0, STP_RES_STOP * MICROSTEPS);}
-void onHydrazinVolumeChange(unsigned int newValue) { epu = map(newValue, 0, 65535, 0, STP_RES_STOP * MICROSTEPS);}
-void onCockpitAlititudeChange(unsigned int newValue) {oxy = map(newValue, 0, 65535, 0, STP_RES_STOP * MICROSTEPS);}
+void onSysbPressureChange(unsigned int newValue) {hyd_b = map(newValue, 0, 65535, 0, FULL_RES);}
+void onHydrazinVolumeChange(unsigned int newValue) { epu = map(newValue, 0, 65535, 0, EPU_RES);}
+void onCockpitAlititudeChange(unsigned int newValue) {oxy = map(newValue, 0, 65535, 0, OXY_RES);}
 void onUpdateCounterChange(unsigned int newValue) { update(); }
 // Register callback functions
 DcsBios::IntegerBuffer callback_primary_consoles_brightness(0x440e, 0xffff, 0x0, set_primary_consoles_brightness);
@@ -128,9 +130,9 @@ void setup() {
   stepper_oxy->setAcceleration(100000);
   stepper_epu->setAcceleration(100000);  
   stepper_hyd_b->setAcceleration(100000);  
-  stepper_oxy->move(-STP_RES);
-  stepper_epu->move(-STP_RES);
-  stepper_hyd_b->move(-STP_RES);
+  stepper_oxy->move(-FULL_RES);
+  stepper_epu->move(-FULL_RES);
+  stepper_hyd_b->move(-FULL_RES);
   delay(2000);
   stepper_oxy->setCurrentPosition(0);  
   stepper_epu->setCurrentPosition(0);
