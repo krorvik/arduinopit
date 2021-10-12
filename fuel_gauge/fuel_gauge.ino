@@ -25,8 +25,9 @@
 #define dir_al 10
 #define dir_hyd_a 11
 
-const unsigned int fuel_fr_limit = 4350;
-const unsigned int fuel_al_limit = 4450;
+// TOo small, jack up a bit.
+const unsigned int fuel_fr_limit = 5150;
+const unsigned int fuel_al_limit = 5150;
 
 // CALCULATIONS
 // Stepper calculations
