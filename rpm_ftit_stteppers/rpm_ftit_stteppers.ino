@@ -59,6 +59,15 @@ void setup() {
   ftit_stp->move(-STP_RES);
   delay(2000);
   ftit_stp->setCurrentPosition(0);
+
+  // Sweep both
+  rpm_stp->moveTo(RPM_LIMIT);
+  ftit_stp->moveTo(FTIT_LIMIT);
+
+  delay(2000);
+
+  rpm_stp->moveTo(0);
+  ftit_stp->moveTo(0);
   DcsBios::setup();
 }
 

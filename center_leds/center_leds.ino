@@ -4,15 +4,7 @@
 #include <U8g2lib.h>
 #include <SPI.h>
 #include <Wire.h> 
-#include <Adafruit_PWMServoDriver.h>
 
-// Servo
-/*
-#define MIN_PULSE_WIDTH 400 
-#define MAX_PULSE_WIDTH 2400
-#define DEFAULT_PULSE_WIDTH 1500
-#define FREQUENCY 50
-*/
 // DED
 #define MAX_STRING_LENGTH 25
 
@@ -48,9 +40,6 @@ void drawDED() {
   DED.drawStr(180, 40, (char*) FUEL);  
   DED.sendBuffer();
 }
-
-// Servo board, first address
-//Adafruit_PWMServoDriver servodriver = Adafruit_PWMServoDriver();
 
 // Caution panel LEDs
 DcsBios::LED LIGHT_AOA_DN ( 0x4474 ,  0x100 , A0);
@@ -137,16 +126,6 @@ DcsBios::LED LIGHT_GEAR_WARN(0x4474 ,  0x1000 , 35);
 DcsBios::LED LIGHT_GEAR_R(0x4474 ,  0x800 ,  37);
 DcsBios::LED LIGHT_GEAR_N(0x4474 ,  0x200 , 39);
 DcsBios::LED LIGHT_GEAR_L(0x4474 ,  0x400 , 41);
-
-//Helper to get a servo pulsewidth for an angle
-/*
-int pulseWidth(int angle) {
-  int pulse_wide, analog_value;
-  pulse_wide = map(angle, 0, 180, MIN_PULSE_WIDTH, MAX_PULSE_WIDTH);
-  analog_value = int(float(pulse_wide) / 1000000 * FREQUENCY * 4096);
-  return analog_value;
-}
- */
  
 void initialize_pins() {
   // Init pins
@@ -168,15 +147,7 @@ void initialize_pins() {
 }
 
 void setup() {  
-  initialize_pins();
-  // Servo setup
-  /*
-  servodriver.begin();
-  servodriver.setPWMFreq(FREQUENCY);
-  // Center servos
-  servodriver.setPWM(0, 0, pulseWidth(90));
-  servodriver.setPWM(1, 0, pulseWidth(90));
-  */
+  initialize_pins();  
   // Clear and draw DED
   DED.begin();
   drawDED();  
