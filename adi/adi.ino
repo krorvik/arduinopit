@@ -103,7 +103,7 @@ void onAdiBankChange(unsigned int newValue) {
 }
 
 void moveBankStepper() {
-  bankStepper->moveTo(STP_RES * bankRotations + map(rawBank, 0, 65535, 800, -800));
+  bankStepper->moveTo(-1 * STP_RES * bankRotations + map(rawBank, 0, 65535, 800, -800));
 }
 
 void setBank() {
