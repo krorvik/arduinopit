@@ -21,14 +21,14 @@ const unsigned int STP_HZ  = 800 * MICROSTEPS;
 const int32_t STP_RES = STP_RES_FULL * MICROSTEPS;
 
 // Pins, all here for easy reading
-const unsigned int altStepPin = 9;
-const unsigned int airspeedStepPin = 10;
-const unsigned int altDirPin = 11;
-const unsigned int airspeedDirPin = 12;
+const unsigned int altStepPin = 10;
+const unsigned int airspeedStepPin = 9;
+const unsigned int altDirPin = 12;
+const unsigned int airspeedDirPin = 11;
 
-const unsigned int altSetPins[] = {2,3};
+const unsigned int altSetPins[] = {6,7};
 const unsigned int baroSetPins[] = {8,13};
-const unsigned int airspeedSetPins[] = {6,7};
+const unsigned int airspeedSetPins[] = {2,3};
 // const unsigned int fourthSetPins[] = {4,5};
 // const unsigned int encButton1Pin = A0
 // const unsigned int encButton1Pin = A1
