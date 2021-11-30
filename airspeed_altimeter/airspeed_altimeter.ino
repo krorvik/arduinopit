@@ -141,15 +141,18 @@ void onExtWowRightChange(unsigned int newValue) {wow_right = newValue; }
 void onAirspeedChange(unsigned int newValue) {airspeed = newValue; }
 void onAlt100FtCntChange(unsigned int newValue) {
   alt_100_steps = (int32_t) map(newValue, 0, 65535, 0, STP_RES); 
-  alt_digits[2] = (char) (translateDigit(newValue) - '0');
+  char digit;
+  alt_digits[2] = itoa(translateDigit(newValue), digit, 10);
 }
 void onAlt1000FtCntChange(unsigned int newValue) {
   alt_1k_steps = translateDigit(newValue) * STP_RES; 
-  alt_digits[1] = (char) (translateDigit(newValue) - '0');
+  char digit;
+  alt_digits[1] = itoa(translateDigit(newValue), digit, 10);
 }
 void onAlt10000FtCntChange(unsigned int newValue) {
   alt_10k_steps = translateDigit(newValue) * STP_RES * 10;
-  alt_digits[0] = (char) (translateDigit(newValue) - '0');
+  char digit;
+  alt_digits[0] = itoa(translateDigit(newValue), digit, 10);
 }
 
 DcsBios::IntegerBuffer extWowLeftBuffer(0x4514, 0x0800, 11, onExtWowLeftChange);
