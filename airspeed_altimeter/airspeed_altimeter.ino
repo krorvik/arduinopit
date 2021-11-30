@@ -27,9 +27,9 @@ const unsigned int altDirPin = 11;
 const unsigned int airspeedDirPin = 12;
 
 const unsigned int altSetPins[] = {2,3};
-const unsigned int baroSetPins[] = {4,5};
+const unsigned int baroSetPins[] = {8,13};
 const unsigned int airspeedSetPins[] = {6,7};
-// const unsigned int fourthSetPins[] = {8,13};
+// const unsigned int fourthSetPins[] = {4,5};
 // const unsigned int encButton1Pin = A0
 // const unsigned int encButton1Pin = A1
 // const unsigned int encButton1Pin = A2
@@ -139,9 +139,18 @@ void onExtWowLeftChange(unsigned int newValue) {wow_left = newValue;}
 void onExtWowNoseChange(unsigned int newValue) {wow_nose = newValue;}
 void onExtWowRightChange(unsigned int newValue) {wow_right = newValue; }
 void onAirspeedChange(unsigned int newValue) {airspeed = newValue; }
-void onAlt100FtCntChange(unsigned int newValue) {alt_100_steps = (int32_t) map(newValue, 0, 65535, 0, STP_RES); }
-void onAlt1000FtCntChange(unsigned int newValue) {alt_1k_steps = translateDigit(newValue) * STP_RES; }
-void onAlt10000FtCntChange(unsigned int newValue) {alt_10k_steps = translateDigit(newValue) * STP_RES * 10;}
+void onAlt100FtCntChange(unsigned int newValue) {
+  alt_100_steps = (int32_t) map(newValue, 0, 65535, 0, STP_RES); 
+  alt_digits[2] = (char) (translateDigit(newValue) - '0');
+}
+void onAlt1000FtCntChange(unsigned int newValue) {
+  alt_1k_steps = translateDigit(newValue) * STP_RES; 
+  alt_digits[1] = (char) (translateDigit(newValue) - '0');
+}
+void onAlt10000FtCntChange(unsigned int newValue) {
+  alt_10k_steps = translateDigit(newValue) * STP_RES * 10;
+  alt_digits[0] = (char) (translateDigit(newValue) - '0');
+}
 
 DcsBios::IntegerBuffer extWowLeftBuffer(0x4514, 0x0800, 11, onExtWowLeftChange);
 DcsBios::IntegerBuffer extWowNoseBuffer(0x4514, 0x0200, 9, onExtWowNoseChange);
