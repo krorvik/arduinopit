@@ -82,7 +82,7 @@ void onAoaValueChange(unsigned int newValue) {
   if (newValue == 0) {
     aoa = common_off;
   } else if (newValue < dcs_zero) {
-    aoa = map(newValue, dcs_low, dcs_zero, common_low, aoa_zero);
+    aoa = map(newValue, dcs_low, dcs_zero, common_low / 5 , aoa_zero);
   } else if (newValue >= dcs_zero) {
     aoa = map(newValue, dcs_zero, dcs_high, aoa_zero, aoa_high);
   }  
