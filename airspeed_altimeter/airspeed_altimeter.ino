@@ -139,17 +139,27 @@ void onExtWowLeftChange(unsigned int newValue) {wow_left = newValue;}
 void onExtWowNoseChange(unsigned int newValue) {wow_nose = newValue;}
 void onExtWowRightChange(unsigned int newValue) {wow_right = newValue; }
 void onAirspeedChange(unsigned int newValue) {airspeed = newValue; }
+
+char itoc(unsigned int value) {
+  char tmp_chars[1];
+  String tmp_str;
+  tmp_str = String(value);
+  tmp_str.toCharArray(tmp_chars, 1);
+  return tmp_chars[0];
+}
+
 void onAlt100FtCntChange(unsigned int newValue) {
   alt_100_steps = (int32_t) map(newValue, 0, 65535, 0, STP_RES); 
-  alt_digits[2] = (char) (translateDigit(newValue) - '0');
+  alt_digits[2] = itoc(translateDigit(newValue));
+  
 }
 void onAlt1000FtCntChange(unsigned int newValue) {
   alt_1k_steps = translateDigit(newValue) * STP_RES;
-  alt_digits[1] = (char) (translateDigit(newValue) - '0');
+  alt_digits[1] = itoc(translateDigit(newValue));
 }
 void onAlt10000FtCntChange(unsigned int newValue) {
   alt_10k_steps = translateDigit(newValue) * STP_RES * 10;
-  alt_digits[0] = (char) (translateDigit(newValue) - '0');
+  alt_digits[0] = itoc(translateDigit(newValue));
 }
 
 DcsBios::IntegerBuffer extWowLeftBuffer(0x4514, 0x0800, 11, onExtWowLeftChange);
