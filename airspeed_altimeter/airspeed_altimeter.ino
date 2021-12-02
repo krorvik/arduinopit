@@ -55,11 +55,15 @@ FastAccelStepper *altStepper = NULL;
 // Encoder
 ESPRotary altEncoder(altSetPins[0], altSetPins[1]);
 
-char alt_digits[5] = {'0', '0', '0', '0', '0'};
 long altPos = 0;
 int32_t alt_100_steps = 0;
 int32_t alt_1k_steps = 0;
 int32_t alt_10k_steps = 0;
+
+
+int16_t alt_100 = 0;
+int16_t alt_1k = 0;
+int16_t alt_10k = 0;
 
 void setAlt() {
   if (isWow()) {
@@ -81,7 +85,9 @@ void displayAlt() {
   display_alt.setTextSize(3);
   display_alt.setTextColor(WHITE);
   display_alt.setCursor(20, 7);
-  display_alt.println(String(alt_digits).substring(0,5));
+  char alt[5];
+  sprintf(alt, "%05d", (10000 * alt_10k + 1000* alt_1k + 100*alt_100)); 
+  display_alt.println(alt);
   display_alt.display();
 }
 
@@ -140,26 +146,18 @@ void onExtWowNoseChange(unsigned int newValue) {wow_nose = newValue;}
 void onExtWowRightChange(unsigned int newValue) {wow_right = newValue; }
 void onAirspeedChange(unsigned int newValue) {airspeed = newValue; }
 
-char itoc(unsigned int value) {
-  char tmp_chars[1];
-  String tmp_str;
-  tmp_str = String(value);
-  tmp_str.toCharArray(tmp_chars, 1);
-  return tmp_chars[0];
-}
-
 void onAlt100FtCntChange(unsigned int newValue) {
-  alt_100_steps = (int32_t) map(newValue, 0, 65535, 0, STP_RES); 
-  alt_digits[2] = itoc(translateDigit(newValue));
+  alt_100 = translateDigit(newValue);
+  alt_100_steps = (int32_t) map(newValue, 0, 65535, 0, STP_RES);
   
 }
 void onAlt1000FtCntChange(unsigned int newValue) {
+  alt_1k = translateDigit(newValue);
   alt_1k_steps = translateDigit(newValue) * STP_RES;
-  alt_digits[1] = itoc(translateDigit(newValue));
 }
 void onAlt10000FtCntChange(unsigned int newValue) {
-  alt_10k_steps = translateDigit(newValue) * STP_RES * 10;
-  alt_digits[0] = itoc(translateDigit(newValue));
+  alt_10k = translateDigit(newValue);
+  alt_10k_steps = translateDigit(newValue) * STP_RES * 10;  
 }
 
 DcsBios::IntegerBuffer extWowLeftBuffer(0x4514, 0x0800, 11, onExtWowLeftChange);
@@ -176,7 +174,7 @@ DcsBios::RotaryEncoder altBaroSetKnb("ALT_BARO_SET_KNB", "-3200", "+3200", baroS
 void onUpdateCounterChange(unsigned int newValue) {
   airspeedStepper->moveTo(translate_ias(airspeed));
   altStepper->moveTo((int32_t) (alt_100_steps + alt_1k_steps  + alt_10k_steps));  
-  displayAlt();
+  
 }
 DcsBios::IntegerBuffer UpdateCounterBuffer(0xfffe, 0x00ff, 0, onUpdateCounterChange);
 
@@ -206,12 +204,6 @@ void setup() {
   airspeedEncoder.setChangedHandler(setAirspeed);
   
   displayAlt();
-  // sweep up/down a bit for debug
-  airspeedStepper->moveTo(3000);
-  altStepper->moveTo(3000);
-  delay(2000);
-  airspeedStepper->moveTo(0);
-  altStepper->moveTo(0);
   DcsBios::setup();
 }
 
@@ -219,5 +211,6 @@ void loop() {
   //Loop all encoders
   altEncoder.loop();  
   airspeedEncoder.loop();
+  displayAlt();
   DcsBios::loop();  
 }
