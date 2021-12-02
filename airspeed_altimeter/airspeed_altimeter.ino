@@ -173,8 +173,8 @@ DcsBios::RotaryEncoder altBaroSetKnb("ALT_BARO_SET_KNB", "-3200", "+3200", baroS
 // Discard the value here, not needed.
 void onUpdateCounterChange(unsigned int newValue) {
   airspeedStepper->moveTo(translate_ias(airspeed));
-  altStepper->moveTo((int32_t) (alt_100_steps + alt_1k_steps  + alt_10k_steps));
-  displayAlt();  
+  altStepper->moveTo((int32_t) (alt_100_steps + alt_1k_steps  + alt_10k_steps));  
+  
 }
 DcsBios::IntegerBuffer UpdateCounterBuffer(0xfffe, 0x00ff, 0, onUpdateCounterChange);
 
@@ -210,6 +210,7 @@ void setup() {
 void loop() {  
   //Loop all encoders
   altEncoder.loop();  
-  airspeedEncoder.loop();  
+  airspeedEncoder.loop();
+  displayAlt();
   DcsBios::loop();  
 }
