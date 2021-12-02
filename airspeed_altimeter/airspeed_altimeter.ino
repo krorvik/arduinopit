@@ -77,6 +77,9 @@ void setAlt() {
     // Remember new position
     altPos = newAltResetPos;
     altStepper->setCurrentPosition(0);
+    do {
+      delay(1);
+    } while (altStepper->isRunning());
   }
 }
 
@@ -124,6 +127,9 @@ void setAirspeed() {
     airspeedPos = newSpeedPos;
     airspeedStepper->setCurrentPosition(0);  
   }
+  do {
+      delay(1);
+    } while (airspeedStepper->isRunning());
 }
 
 // The air speed indicator is not linear, but consists of several ranges where motion is linear. 
