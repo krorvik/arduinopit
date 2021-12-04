@@ -42,6 +42,7 @@ bool wow_left = true;
 // Keep track of the dcs bios update counter
 uint8_t dcs_counter_bios = 0;
 uint8_t dcs_counter_local = 0;
+boolean dcs_started = false;
 
 bool isWow() {
   return wow_nose and wow_left and wow_right;
@@ -202,6 +203,14 @@ void onAlt10000FtCntChange(unsigned int newValue) {
   alt_10k_steps = translateDigit(newValue) * STP_RES * 10;
 }
 
+// Hook up stuff to do at end of dcs bios updates (all values are set at this point)
+void onUpdateCounterChange(unsigned int newValue) {
+  dcs_counter_bios = newValue;
+  airspeedStepper->moveTo(translate_ias(airspeed));
+  altStepper->moveTo((int32_t) (alt_100_steps + alt_1k_steps  + alt_10k_steps));
+  displayAlt();
+}
+
 DcsBios::IntegerBuffer extWowLeftBuffer(0x4514, 0x0800, 11, onExtWowLeftChange);
 DcsBios::IntegerBuffer extWowNoseBuffer(0x4514, 0x0200, 9, onExtWowNoseChange);
 DcsBios::IntegerBuffer extWowRightBuffer(0x4514, 0x0400, 10, onExtWowRightChange);
@@ -210,15 +219,6 @@ DcsBios::IntegerBuffer alt1000FtCntBuffer(0x448a, 0xffff, 0, onAlt1000FtCntChang
 DcsBios::IntegerBuffer alt10000FtCntBuffer(0x4488, 0xffff, 0, onAlt10000FtCntChange);
 DcsBios::IntegerBuffer airspeedBuffer(0x4498, 0xffff, 0, onAirspeedChange);
 DcsBios::RotaryEncoder altBaroSetKnb("ALT_BARO_SET_KNB", "-3200", "+3200", baroSetPins[0], baroSetPins[1]);
-
-// Hook up stuff to do at end of dcs bios updates (all values are set at this point)
-void onUpdateCounterChange(unsigned int newValue) {
-  dcs_counter_bios = newValue;
-  airspeedStepper->moveTo(translate_ias(airspeed));
-  altStepper->moveTo((int32_t) (alt_100_steps + alt_1k_steps  + alt_10k_steps));
-  displayAlt();
-
-}
 DcsBios::IntegerBuffer UpdateCounterBuffer(0xfffe, 0x00ff, 0, onUpdateCounterChange);
 
 void setup() {
@@ -250,15 +250,23 @@ void setup() {
   DcsBios::setup();
 }
 
-void loop() {  
-  //Loop all encoders if dcs update counter  has not changed
-  if (dcs_counter_local == dcs_counter_bios) {
-    altEncoder.loop();
-    airspeedEncoder.loop();
-  } else {
-    // Or update local update counter vs dcs bios counter
-    dcs_counter_local = dcs_counter_bios;
+void loop() {    
+  //Loop all encoders if dcs has not started yet
+  if (not dcs_started) {
+      altEncoder.loop();
+      airspeedEncoder.loop();
   }
- 
+
+  if (dcs_counter_local != dcs_counter_bios) {
+    // If not already started, need to reset needles
+    if (not dcs_started) {
+      airspeedStepper->setCurrentPosition(0);
+      altStepper->setCurrentPosition(0);
+      // and Mark DCS as started
+      dcs_started = true;
+    }        
+  }
+
+  dcs_counter_local = dcs_counter_bios;    
   DcsBios::loop();
 }
