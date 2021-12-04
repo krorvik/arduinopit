@@ -26,9 +26,9 @@ const unsigned int airspeedStepPin = 9;
 const unsigned int altDirPin = 12;
 const unsigned int airspeedDirPin = 11;
 
-const unsigned int altSetPins[] = {6,7};
-const unsigned int baroSetPins[] = {8,13};
-const unsigned int airspeedSetPins[] = {2,3};
+const unsigned int altSetPins[] = {6, 7};
+const unsigned int baroSetPins[] = {8, 13};
+const unsigned int airspeedSetPins[] = {2, 3};
 // const unsigned int fourthSetPins[] = {4,5};
 // const unsigned int encButton1Pin = A0
 // const unsigned int encButton1Pin = A1
@@ -39,6 +39,9 @@ const unsigned int airspeedSetPins[] = {2,3};
 bool wow_nose = true;
 bool wow_right = true;
 bool wow_left = true;
+// Keep track of the dcs bios update counter
+uint8_t dcs_counter_bios = 0;
+uint8_t dcs_counter_local = 0;
 
 bool isWow() {
   return wow_nose and wow_left and wow_right;
@@ -76,10 +79,6 @@ void setAlt() {
     altStepper->move(diff * 8);
     // Remember new position
     altPos = newAltResetPos;
-    do {
-      delay(1);
-    } while (altStepper->isRunning());
-    altStepper->setCurrentPosition(0);    
   }
 }
 
@@ -89,21 +88,39 @@ void displayAlt() {
   display_alt.setTextColor(WHITE);
   display_alt.setCursor(20, 7);
   char alt[5];
-  sprintf(alt, "%05d", (10000 * alt_10k + 1000* alt_1k + 100*alt_100)); 
+  sprintf(alt, "%05d", (10000 * alt_10k + 1000 * alt_1k + 100 * alt_100));
   display_alt.println(alt);
   display_alt.display();
 }
 
 int32_t translateDigit(unsigned int value) {
-  if (value < 6553) { return 0;}
-  if (value < 13107) { return 1;}
-  if (value < 19660) { return 2;}
-  if (value < 26214) { return 3;}
-  if (value < 32767) { return 4;}
-  if (value < 39321) { return 5;}
-  if (value < 45874) { return 6;}
-  if (value < 52428) { return 7;}
-  if (value < 58981) { return 8;}
+  if (value < 6553) {
+    return 0;
+  }
+  if (value < 13107) {
+    return 1;
+  }
+  if (value < 19660) {
+    return 2;
+  }
+  if (value < 26214) {
+    return 3;
+  }
+  if (value < 32767) {
+    return 4;
+  }
+  if (value < 39321) {
+    return 5;
+  }
+  if (value < 45874) {
+    return 6;
+  }
+  if (value < 52428) {
+    return 7;
+  }
+  if (value < 58981) {
+    return 8;
+  }
   return 9;
 }
 
@@ -125,38 +142,56 @@ void setAirspeed() {
     airspeedStepper->move(diff * 8);
     // Remember new position
     airspeedPos = newSpeedPos;
-    do {
-      delay(1);
-    } while (airspeedStepper->isRunning());
-    airspeedStepper->setCurrentPosition(0);  
   }
-  
+
 }
 
-// The air speed indicator is not linear, but consists of several ranges where motion is linear. 
+// The air speed indicator is not linear, but consists of several ranges where motion is linear.
 // These are translated to real positions here.
 int32_t translate_ias(unsigned int value) {
-  if (value <  6553) { return (int32_t) map(value,     0,  6553,     0,   460); } // up to 1
-  if (value < 13107) { return (int32_t) map(value,  6553, 13107,   460,  2280); } // up to 2
-  if (value < 16625) { return (int32_t) map(value, 13107, 16625,  2280,  2790); } // up to 2.5
-  if (value < 19797) { return (int32_t) map(value, 16625, 19797,  2790,  3140); } // up to 3
-  if (value < 26071) { return (int32_t) map(value, 19797, 26071,  3140,  3750); } // up to 4
-  if (value < 32975) { return (int32_t) map(value, 26071, 32975,  3750,  4210); } // up to 5
-  if (value < 39647) { return (int32_t) map(value, 32975, 39647,  4210,  4620); } // up to 6
+  if (value <  6553) {
+    return (int32_t) map(value,     0,  6553,     0,   460);  // up to 1
+  }
+  if (value < 13107) {
+    return (int32_t) map(value,  6553, 13107,   460,  2280);  // up to 2
+  }
+  if (value < 16625) {
+    return (int32_t) map(value, 13107, 16625,  2280,  2790);  // up to 2.5
+  }
+  if (value < 19797) {
+    return (int32_t) map(value, 16625, 19797,  2790,  3140);  // up to 3
+  }
+  if (value < 26071) {
+    return (int32_t) map(value, 19797, 26071,  3140,  3750);  // up to 4
+  }
+  if (value < 32975) {
+    return (int32_t) map(value, 26071, 32975,  3750,  4210);  // up to 5
+  }
+  if (value < 39647) {
+    return (int32_t) map(value, 32975, 39647,  4210,  4620);  // up to 6
+  }
   return (int32_t) map(value, 39647, 58981,  4620,  5760); // up to 9,
 }
 
 // DCS bios callbacks
 // Weight on wheels is useful information
-void onExtWowLeftChange(unsigned int newValue) {wow_left = newValue;}
-void onExtWowNoseChange(unsigned int newValue) {wow_nose = newValue;}
-void onExtWowRightChange(unsigned int newValue) {wow_right = newValue; }
-void onAirspeedChange(unsigned int newValue) {airspeed = newValue; }
+void onExtWowLeftChange(unsigned int newValue) {
+  wow_left = newValue;
+}
+void onExtWowNoseChange(unsigned int newValue) {
+  wow_nose = newValue;
+}
+void onExtWowRightChange(unsigned int newValue) {
+  wow_right = newValue;
+}
+void onAirspeedChange(unsigned int newValue) {
+  airspeed = newValue;
+}
 
 void onAlt100FtCntChange(unsigned int newValue) {
   alt_100 = translateDigit(newValue);
   alt_100_steps = (int32_t) map(newValue, 0, 65535, 0, STP_RES);
-  
+
 }
 void onAlt1000FtCntChange(unsigned int newValue) {
   alt_1k = translateDigit(newValue);
@@ -164,7 +199,7 @@ void onAlt1000FtCntChange(unsigned int newValue) {
 }
 void onAlt10000FtCntChange(unsigned int newValue) {
   alt_10k = translateDigit(newValue);
-  alt_10k_steps = translateDigit(newValue) * STP_RES * 10;  
+  alt_10k_steps = translateDigit(newValue) * STP_RES * 10;
 }
 
 DcsBios::IntegerBuffer extWowLeftBuffer(0x4514, 0x0800, 11, onExtWowLeftChange);
@@ -177,12 +212,12 @@ DcsBios::IntegerBuffer airspeedBuffer(0x4498, 0xffff, 0, onAirspeedChange);
 DcsBios::RotaryEncoder altBaroSetKnb("ALT_BARO_SET_KNB", "-3200", "+3200", baroSetPins[0], baroSetPins[1]);
 
 // Hook up stuff to do at end of dcs bios updates (all values are set at this point)
-// Discard the value here, not needed.
 void onUpdateCounterChange(unsigned int newValue) {
+  dcs_counter_bios = newValue;
   airspeedStepper->moveTo(translate_ias(airspeed));
   altStepper->moveTo((int32_t) (alt_100_steps + alt_1k_steps  + alt_10k_steps));
   displayAlt();
-  
+
 }
 DcsBios::IntegerBuffer UpdateCounterBuffer(0xfffe, 0x00ff, 0, onUpdateCounterChange);
 
@@ -190,35 +225,40 @@ void setup() {
   engine.init();
 
   // Init displays
-  Wire.begin();  
+  Wire.begin();
   display_alt.begin(SSD1306_SWITCHCAPVCC, I2C_DISPLAY_ADDRESS);
-  
+
   altStepper = engine.stepperConnectToPin(altStepPin);
   altStepper->setDirectionPin(altDirPin);
-  altStepper->setSpeedInHz(STP_HZ);    
+  altStepper->setSpeedInHz(STP_HZ);
   altStepper->setAcceleration(5000);
   altStepper->setCurrentPosition(0);
 
   airspeedStepper = engine.stepperConnectToPin(airspeedStepPin);
   airspeedStepper->setDirectionPin(airspeedDirPin);
-  airspeedStepper->setSpeedInHz(STP_HZ);    
+  airspeedStepper->setSpeedInHz(STP_HZ);
   airspeedStepper->setAcceleration(5000);
   airspeedStepper->setCurrentPosition(0);
 
   altPos = altEncoder.getPosition();
   altEncoder.setChangedHandler(setAlt);
-  
+
   airspeedPos = airspeedEncoder.getPosition();
   airspeedEncoder.setChangedHandler(setAirspeed);
-  
+
   displayAlt();
   DcsBios::setup();
 }
 
 void loop() {  
-  //Loop all encoders
-  altEncoder.loop();  
-  airspeedEncoder.loop();
-  
-  DcsBios::loop();  
+  //Loop all encoders if dcs update counter  has not changed
+  if (dcs_counter_local == dcs_counter_bios) {
+    altEncoder.loop();
+    airspeedEncoder.loop();
+  } else {
+    // Or update local update counter vs dcs bios counter
+    dcs_counter_local = dcs_counter_bios;
+  }
+ 
+  DcsBios::loop();
 }
