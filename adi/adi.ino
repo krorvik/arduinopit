@@ -204,8 +204,8 @@ void setup() {
   servos.setPWMFreq(60);
   // servo flags 
   servos.setPWM(0, 0, flag_servos_hidden[0]);
-  servos.setPWM(1, 0, flag_servos_visible[1]);
-  servos.setPWM(2, 0, flag_servos_visible[2]);
+  servos.setPWM(1, 0, flag_servos_hidden[1]);
+  servos.setPWM(2, 0, flag_servos_hidden[2]);
   servos.setPWM(3, 0, flag_servos_hidden[3]);
   displayBaro();
   DcsBios::setup();

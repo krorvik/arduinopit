@@ -1,7 +1,7 @@
 #define DCSBIOS_IRQ_SERIAL
+#include "DcsBios.h"
 #include "FastAccelStepper.h"
 #include "ESPRotary.h"
-#include "DcsBios.h"
 #include "Button2.h"
 #include <SPI.h>
 #include <Wire.h>
@@ -30,43 +30,53 @@ const unsigned int altSetPins[] = {6, 7};
 const unsigned int baroSetPins[] = {8, 13};
 const unsigned int airspeedSetPins[] = {2, 3};
 // const unsigned int fourthSetPins[] = {4,5};
-// const unsigned int encButton1Pin = A0
-// const unsigned int encButton1Pin = A1
-// const unsigned int encButton1Pin = A2
-// const unsigned int encButton1Pin = A3
+const unsigned int startButtonPin = A0;
+//const unsigned int baroSetButtonPin = A2;
+const unsigned int resetButtonPin = A1;
+// const unsigned int encButton1Pin = A3;
 
-// Useful
-bool wow_nose = true;
-bool wow_right = true;
-bool wow_left = true;
-
-bool isWow() {
-  return wow_nose and wow_left and wow_right;
-}
-
-Adafruit_SSD1306 display_alt(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
-FastAccelStepperEngine engine = FastAccelStepperEngine();
-
-// END COMMON
-
-// ALTIMETER
-// Stepper
-FastAccelStepper *altStepper = NULL;
-// Encoder
-ESPRotary altEncoder(altSetPins[0], altSetPins[1]);
+bool isInitialized = false;
 
 long altPos = 0;
 int32_t alt_100_steps = 0;
 int32_t alt_1k_steps = 0;
 int32_t alt_10k_steps = 0;
 
-
 int16_t alt_100 = 0;
 int16_t alt_1k = 0;
 int16_t alt_10k = 0;
 
+long airspeedPos = 0;
+unsigned int airspeed = 0;
+
+
+Adafruit_SSD1306 display_alt(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+FastAccelStepperEngine engine = FastAccelStepperEngine();
+
+FastAccelStepper *airspeedStepper = NULL;
+FastAccelStepper *altStepper = NULL;
+ESPRotary airspeedEncoder(airspeedSetPins[0], airspeedSetPins[1]);
+ESPRotary altEncoder(altSetPins[0], altSetPins[1]);
+Button2 startButton;
+Button2 resetButton;
+
+
+void setAirspeed() {
+  if (not isInitialized) {
+    // read top encoder
+    // Read new encoder position
+    long newSpeedPos = airspeedEncoder.getPosition();
+    // Get diff
+    long diff = newSpeedPos - airspeedPos;
+    // Move needle
+    airspeedStepper->move(diff * 8);
+    // Remember new position
+    airspeedPos = newSpeedPos;
+  }
+}
+
 void setAlt() {
-  if (isWow()) {
+  if (not isInitialized) {
     // read alt reset encoder
     // Read new encoder position
     long newAltResetPos = altEncoder.getPosition();
@@ -79,17 +89,32 @@ void setAlt() {
   }
 }
 
-void displayAlt() {
-  display_alt.clearDisplay();
-  display_alt.setTextSize(3);
-  display_alt.setTextColor(WHITE);
-  display_alt.setCursor(20, 7);
-  char alt[5];
-  sprintf(alt, "%05d", (10000 * alt_10k + 1000 * alt_1k + 100 * alt_100));
-  display_alt.println(alt);
-  display_alt.display();
+void displayInit() {
+  if (not isInitialized) {
+    display_alt.clearDisplay();
+    display_alt.setTextSize(3);
+    display_alt.setTextColor(WHITE);
+    display_alt.setCursor(20, 7);
+    display_alt.println(F("XXXXX"));
+    display_alt.display();
+  }
 }
 
+void displayAlt() {
+  if (isInitialized) {
+    display_alt.clearDisplay();
+    display_alt.setTextSize(3);
+    display_alt.setTextColor(WHITE);
+    display_alt.setCursor(20, 7);
+    char alt[5];
+    sprintf(alt, "%05d", (10000 * alt_10k + 1000 * alt_1k + 100 * alt_100));
+    display_alt.println(alt);
+    display_alt.display();
+  }
+}
+
+
+// Helpers
 int32_t translateDigit(unsigned int value) {
   if (value < 6553) {
     return 0;
@@ -121,28 +146,6 @@ int32_t translateDigit(unsigned int value) {
   return 9;
 }
 
-// AIRSPEED
-FastAccelStepper *airspeedStepper = NULL;
-ESPRotary airspeedEncoder(airspeedSetPins[0], airspeedSetPins[1]);
-
-long airspeedPos = 0;
-unsigned int airspeed = 0;
-
-void setAirspeed() {
-  if (isWow()) {
-    // read top encoder
-    // Read new encoder position
-    long newSpeedPos = airspeedEncoder.getPosition();
-    // Get diff
-    long diff = newSpeedPos - airspeedPos;
-    // Move needle
-    airspeedStepper->move(diff * 8);
-    // Remember new position
-    airspeedPos = newSpeedPos;
-  }
-
-}
-
 // The air speed indicator is not linear, but consists of several ranges where motion is linear.
 // These are translated to real positions here.
 int32_t translate_ias(unsigned int value) {
@@ -170,21 +173,25 @@ int32_t translate_ias(unsigned int value) {
   return (int32_t) map(value, 39647, 58981,  4620,  5760); // up to 9,
 }
 
-// DCS bios callbacks
-// Weight on wheels is useful information
-void onExtWowLeftChange(unsigned int newValue) {
-  wow_left = newValue;
-}
-void onExtWowNoseChange(unsigned int newValue) {
-  wow_nose = newValue;
-}
-void onExtWowRightChange(unsigned int newValue) {
-  wow_right = newValue;
-}
-void onAirspeedChange(unsigned int newValue) {
-  airspeed = newValue;
+void startButtonLongClick(Button2 button) {  
+  if (not isInitialized) {
+    isInitialized = true;
+    // Reset positions for steppers
+    altStepper->setCurrentPosition(0);
+    airspeedStepper->setCurrentPosition(0);
+    displayAlt();
+  }
 }
 
+void resetButtonLongClick(Button2 button) {
+  if (isInitialized) {
+    // Reinit requested
+    isInitialized = false;
+    displayInit();
+  }
+}
+
+// DCS bios callbacks
 void onAlt100FtCntChange(unsigned int newValue) {
   alt_100 = translateDigit(newValue);
   alt_100_steps = (int32_t) map(newValue, 0, 65535, 0, STP_RES);
@@ -206,19 +213,15 @@ void onUpdateCounterChange(unsigned int newValue) {
   displayAlt();
 }
 
-DcsBios::IntegerBuffer extWowLeftBuffer(0x4514, 0x0800, 11, onExtWowLeftChange);
-DcsBios::IntegerBuffer extWowNoseBuffer(0x4514, 0x0200, 9, onExtWowNoseChange);
-DcsBios::IntegerBuffer extWowRightBuffer(0x4514, 0x0400, 10, onExtWowRightChange);
 DcsBios::IntegerBuffer alt100FtCntBuffer(0x448c, 0xffff, 0, onAlt100FtCntChange);
 DcsBios::IntegerBuffer alt1000FtCntBuffer(0x448a, 0xffff, 0, onAlt1000FtCntChange);
 DcsBios::IntegerBuffer alt10000FtCntBuffer(0x4488, 0xffff, 0, onAlt10000FtCntChange);
-DcsBios::IntegerBuffer airspeedBuffer(0x4498, 0xffff, 0, onAirspeedChange);
 DcsBios::RotaryEncoder altBaroSetKnb("ALT_BARO_SET_KNB", "-3200", "+3200", baroSetPins[0], baroSetPins[1]);
 DcsBios::IntegerBuffer UpdateCounterBuffer(0xfffe, 0x00ff, 0, onUpdateCounterChange);
 
+
 void setup() {
   engine.init();
-
   // Init displays
   Wire.begin();
   display_alt.begin(SSD1306_SWITCHCAPVCC, I2C_DISPLAY_ADDRESS);
@@ -237,17 +240,26 @@ void setup() {
 
   altPos = altEncoder.getPosition();
   altEncoder.setChangedHandler(setAlt);
-
   airspeedPos = airspeedEncoder.getPosition();
   airspeedEncoder.setChangedHandler(setAirspeed);
 
-  displayAlt();
+  startButton.begin(startButtonPin);
+  startButton.setLongClickTime(2000);
+  startButton.setLongClickDetectedHandler(startButtonLongClick);
+  
+  resetButton.begin(resetButtonPin);  
+  resetButton.setLongClickTime(2000);
+  resetButton.setLongClickDetectedHandler(resetButtonLongClick);
+
+  displayInit();
+  
   DcsBios::setup();
 }
 
-void loop() {    
-  //Loop all encoders if dcs has not started yet
-  altEncoder.loop();
-  airspeedEncoder.loop();
+void loop() {
   DcsBios::loop();
+  resetButton.loop();    
+  startButton.loop();
+  altEncoder.loop();
+  airspeedEncoder.loop();  
 }
