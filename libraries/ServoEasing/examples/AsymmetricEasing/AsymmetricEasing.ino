@@ -3,7 +3,7 @@
  *
  *  Shows asymmetric (end movement is different from start movement) user defined non linear movements for 3 servos synchronously.
  *
- *  Copyright (C) 2019  Armin Joachimsmeyer
+ *  Copyright (C) 2019-2021  Armin Joachimsmeyer
  *  armin.joachimsmeyer@gmail.com
  *
  *  This file is part of ServoEasing https://github.com/ArminJo/ServoEasing.
@@ -24,10 +24,10 @@
 
 #include <Arduino.h>
 
-/*
- * To generate the Arduino plotter output, you must activate the line #define PRINT_FOR_SERIAL_PLOTTER in ServoEasing.h
- */
-#include "ServoEasing.h"
+// Must specify this before the include of "ServoEasing.hpp"
+//#define PRINT_FOR_SERIAL_PLOTTER // Activate this to generate the Arduino plotter output
+
+#include "ServoEasing.hpp"
 
 #include "PinDefinitionsAndMore.h"
 /*
@@ -46,6 +46,8 @@ ServoEasing Servo1;
 ServoEasing Servo2;
 ServoEasing Servo3;
 
+#define START_DEGREE_VALUE 90
+
 // forward declarations
 float EaseQuadraticInQuarticOut(float aPercentageOfCompletion);
 
@@ -53,7 +55,7 @@ void setup() {
     pinMode(LED_BUILTIN, OUTPUT);
     Serial.begin(115200);
 #if defined(__AVR_ATmega32U4__) || defined(SERIAL_USB) || defined(SERIAL_PORT_USBVIRTUAL)  || defined(ARDUINO_attiny3217)
-    delay(2000); // To be able to connect Serial monitor after reset or power up and before first printout
+    delay(4000); // To be able to connect Serial monitor after reset or power up and before first print out. Do not wait for an attached Serial Monitor!
 #endif
     // Just to know which program is running on my Arduino
 #ifndef PRINT_FOR_SERIAL_PLOTTER
@@ -64,12 +66,19 @@ void setup() {
     analogReadResolution(10);
 #endif
 
-    // Attach servos to pins
+    /************************************************************
+     * Attach servo to pin and set servos to start position.
+     * This is the position where the movement starts.
+     *
+     * The order of the attach() determine the position
+     * of the Servos in internal ServoEasing::ServoEasingArray[]
+     ***********************************************************/
 #ifndef PRINT_FOR_SERIAL_PLOTTER
     Serial.print(F("Attach servo at pin "));
     Serial.println(SERVO1_PIN);
 #endif
-    if (Servo1.attach(SERVO1_PIN, DEFAULT_MICROSECONDS_FOR_0_DEGREE, DEFAULT_MICROSECONDS_FOR_180_DEGREE) == INVALID_SERVO) {
+    if (Servo1.attach(SERVO1_PIN, START_DEGREE_VALUE, DEFAULT_MICROSECONDS_FOR_0_DEGREE,
+    DEFAULT_MICROSECONDS_FOR_180_DEGREE) == INVALID_SERVO) {
         Serial.println(F("Error attaching servo"));
     }
 
@@ -77,7 +86,8 @@ void setup() {
     Serial.print(F("Attach servo at pin "));
     Serial.println(SERVO2_PIN);
 #endif
-    if (Servo2.attach(SERVO2_PIN, DEFAULT_MICROSECONDS_FOR_0_DEGREE, DEFAULT_MICROSECONDS_FOR_180_DEGREE) == INVALID_SERVO) {
+    if (Servo2.attach(SERVO2_PIN, START_DEGREE_VALUE, DEFAULT_MICROSECONDS_FOR_0_DEGREE,
+    DEFAULT_MICROSECONDS_FOR_180_DEGREE) == INVALID_SERVO) {
         Serial.println(F("Error attaching servo"));
     }
 
@@ -88,7 +98,8 @@ void setup() {
     Serial.print(F("Attach servo at pin "));
     Serial.println(SERVO3_PIN);
 #endif
-    if (Servo3.attach(SERVO3_PIN, DEFAULT_MICROSECONDS_FOR_0_DEGREE, DEFAULT_MICROSECONDS_FOR_180_DEGREE) == INVALID_SERVO) {
+    if (Servo3.attach(SERVO3_PIN, START_DEGREE_VALUE, DEFAULT_MICROSECONDS_FOR_0_DEGREE,
+    DEFAULT_MICROSECONDS_FOR_180_DEGREE) == INVALID_SERVO) {
         Serial.println(F("Error attaching servo"));
         while (true) {
             digitalWrite(LED_BUILTIN, HIGH);
@@ -97,14 +108,6 @@ void setup() {
             delay(100);
         }
     }
-
-    /**************************************************
-     * Set servos to start position.
-     * This is the position where the movement starts.
-     *************************************************/
-    Servo1.write(90);
-    Servo2.write(90);
-    Servo3.write(90);
 
     // Wait for servos to reach start position.
     delay(2000);
@@ -164,7 +167,7 @@ void loop() {
 
     do {
         // here you can call your own program
-        delay(REFRESH_INTERVAL / 1000); // optional 20 ms delay - REFRESH_INTERVAL is in Microseconds
+        delay(REFRESH_INTERVAL_MILLIS); // optional 20 ms delay - REFRESH_INTERVAL is in Microseconds
     } while (!updateAllServos());
 
     /*

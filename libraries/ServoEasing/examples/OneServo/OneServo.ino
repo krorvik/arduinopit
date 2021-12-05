@@ -3,7 +3,7 @@
  *
  *  Shows smooth linear movement from one servo position to another.
  *
- *  Copyright (C) 2019  Armin Joachimsmeyer
+ *  Copyright (C) 2019-2021  Armin Joachimsmeyer
  *  armin.joachimsmeyer@gmail.com
  *
  *  This file is part of ServoEasing https://github.com/ArminJo/ServoEasing.
@@ -24,7 +24,7 @@
 
 #include <Arduino.h>
 
-#include "ServoEasing.h"
+#include "ServoEasing.hpp"
 
 #include "PinDefinitionsAndMore.h"
 /*
@@ -42,27 +42,26 @@
 
 ServoEasing Servo1;
 
+#define START_DEGREE_VALUE  0 // The degree value written to the servo at time of attach.
+
 void setup() {
     pinMode(LED_BUILTIN, OUTPUT);
     Serial.begin(115200);
 #if defined(__AVR_ATmega32U4__) || defined(SERIAL_USB) || defined(SERIAL_PORT_USBVIRTUAL)  || defined(ARDUINO_attiny3217)
-    delay(2000); // To be able to connect Serial monitor after reset or power up and before first printout
+    delay(4000); // To be able to connect Serial monitor after reset or power up and before first print out. Do not wait for an attached Serial Monitor!
 #endif
     // Just to know which program is running on my Arduino
     Serial.println(F("START " __FILE__ " from " __DATE__ "\r\nUsing library version " VERSION_SERVO_EASING));
 
-    // Attach servo to pin
+    /********************************************************
+     * Attach servo to pin and set servos to start position.
+     * This is the position where the movement starts.
+     *******************************************************/
     Serial.print(F("Attach servo at pin "));
     Serial.println(SERVO1_PIN);
-    if (Servo1.attach(SERVO1_PIN) == INVALID_SERVO) {
+    if (Servo1.attach(SERVO1_PIN, START_DEGREE_VALUE) == INVALID_SERVO) {
         Serial.println(F("Error attaching servo"));
     }
-
-    /**************************************************
-     * Set servos to start position.
-     * This is the position where the movement starts.
-     *************************************************/
-    Servo1.write(0);
 
     // Wait for servo to reach start position.
     delay(500);
@@ -115,7 +114,10 @@ void loop() {
     Servo1.startEaseToD(45, 1000);
 #endif
     // Blink until servo stops
-    while (ServoEasing::areInterruptsActive()) {
+    while (Servo1.isMoving()) {
+        /*
+         * Put your own code here
+         */
         blinkLED();
     }
 
@@ -132,8 +134,11 @@ void loop() {
 #else
         Servo1.startEaseToD(135, 1000);
 #endif
-        // areInterruptsActive() calls yield for the ESP8266 boards
-        while (ServoEasing::areInterruptsActive()) {
+        // isMoving() calls yield for the ESP8266 boards
+        while (Servo1.isMoving()) {
+            /*
+             * Put your own code here
+             */
             ; // no delays here to avoid break between forth and back movement
         }
 #ifdef ENABLE_MICROS_AS_DEGREE_PARAMETER
@@ -141,7 +146,7 @@ void loop() {
 #else
         Servo1.startEaseToD(45, 1000);
 #endif
-        while (ServoEasing::areInterruptsActive()) {
+        while (Servo1.isMoving()) {
             ; // no delays here to avoid break between forth and back movement
         }
     }
@@ -164,7 +169,7 @@ void loop() {
         delay(20); // just wait until angle is above 120 degree
     }
     digitalWrite(LED_BUILTIN, HIGH);
-    while (ServoEasing::areInterruptsActive()) {
+    while (Servo1.isMoving()) {
         ; // wait for servo to stop
     }
 
@@ -191,13 +196,13 @@ void loop() {
     delay(250);
     digitalWrite(LED_BUILTIN, LOW);
 
+#ifdef INFO
+    Serial.println(F("Interrupt movement with stop() for 1 second at 90 degree"));
+#endif
     /*
      * Demonstrate stop and continue in the middle of a movement
      */
     Servo1.stop();
-#ifdef INFO
-    Serial.println(F("Interrupt movement with stop() for 1 second at 90 degree"));
-#endif
     delay(1000);
     // continue movement using interrupts
     Servo1.continueWithInterrupts();

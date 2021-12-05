@@ -1,3 +1,14 @@
+0.24.0:
+- Implement configurable delay after direction pin change and first step in new direction
+  [Issue #83](https://github.com/gin66/FastAccelStepper/issues/83).
+  The value is set by the third parameter of setDirectionPin().
+- Add table of timing values in FastAccelStepper.h for the architectures
+- StepperDemo extended:
+	- add config mode (press c) for direction pin configuration
+- Support changed mpcwpm-definitions in esp-idf v4.4
+- Fix warning identified in this [Issue #98](https://github.com/gin66/FastAccelStepper/issues/98) for fas_abs() usage
+
+
 0.23.5:
 - Add missing initialization of dir pin to be PIN_UNDEFINED.
   With two or more steppers without dir pin, the steppers have run only sequential and not in parallel.

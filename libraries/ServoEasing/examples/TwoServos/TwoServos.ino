@@ -2,9 +2,10 @@
  * TwoServos.cpp
  *
  *  Shows smooth movement from one servo position to another for 2 servos synchronously.
- *  Operate the first servo from -90 to +90 degree
+ *  Operate the first servo from -90 to +90 degree.
+ *  This example uses the LightweightServo library. This saves 640 bytes program space compared to using Arduino Servo library.
  *
- *  Copyright (C) 2019  Armin Joachimsmeyer
+ *  Copyright (C) 2019-2021  Armin Joachimsmeyer
  *  armin.joachimsmeyer@gmail.com
  *
  *  This file is part of ServoEasing https://github.com/ArminJo/ServoEasing.
@@ -25,7 +26,13 @@
 
 #include <Arduino.h>
 
-#include "ServoEasing.h"
+// Must specify this before the include of "ServoEasing.hpp"
+#if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
+#define USE_LEIGHTWEIGHT_SERVO_LIB
+#include "LightweightServo.hpp" // include sources of LightweightServo library
+#endif
+
+#include "ServoEasing.hpp"
 
 #ifndef PRINT_FOR_SERIAL_PLOTTER
 #define INFO // to see serial text output for loop
@@ -47,26 +54,31 @@
 ServoEasing Servo1;
 ServoEasing Servo2;
 
+#define START_DEGREE_VALUE  0 // The degree value written to the servo at time of attach.
+
 void blinkLED();
 
 void setup() {
     pinMode(LED_BUILTIN, OUTPUT);
     Serial.begin(115200);
 #if defined(__AVR_ATmega32U4__) || defined(SERIAL_USB) || defined(SERIAL_PORT_USBVIRTUAL)  || defined(ARDUINO_attiny3217)
-    delay(2000); // To be able to connect Serial monitor after reset or power up and before first printout
+    delay(4000); // To be able to connect Serial monitor after reset or power up and before first print out. Do not wait for an attached Serial Monitor!
 #endif
 #ifndef PRINT_FOR_SERIAL_PLOTTER
     // Just to know which program is running on my Arduino
     Serial.println(F("START " __FILE__ " from " __DATE__ "\r\nUsing library version " VERSION_SERVO_EASING));
 
-    // Attach servos to pins
-    // The order of the attaches determine the position of the Servos in internal ServoEasing::ServoEasingNextPositionArray[]
+    /************************************************************
+     * Attach servo to pin and set servos to start position.
+     * This is the position where the movement starts.
+     *
+     * The order of the attach() determine the position
+     * of the Servos in internal ServoEasing::ServoEasingArray[]
+     ***********************************************************/
     Serial.print(F("Attach servo at pin "));
     Serial.println(SERVO1_PIN);
 #endif
-    if (Servo1.attach(SERVO1_PIN) == INVALID_SERVO) {
-        Serial.println(F("Error attaching servo"));
-    }
+    Servo1.attach(SERVO1_PIN, START_DEGREE_VALUE, DEFAULT_MICROSECONDS_FOR_0_DEGREE, DEFAULT_MICROSECONDS_FOR_180_DEGREE);
 
 #ifndef PRINT_FOR_SERIAL_PLOTTER
     /*
@@ -75,7 +87,7 @@ void setup() {
     Serial.print(F("Attach servo at pin "));
     Serial.println(SERVO2_PIN);
 #endif
-    if (Servo2.attach(SERVO2_PIN) == INVALID_SERVO) {
+    if (Servo2.attach(SERVO2_PIN, START_DEGREE_VALUE, DEFAULT_MICROSECONDS_FOR_0_DEGREE, DEFAULT_MICROSECONDS_FOR_180_DEGREE) == INVALID_SERVO) {
         Serial.println(F("Error attaching servo"));
         while (true) {
             blinkLED();
@@ -93,13 +105,6 @@ void setup() {
      */
     Servo1.setTrim(90);
 
-
-    /**************************************************
-     * Set servos to start position.
-     * This is the position where the movement starts.
-     *************************************************/
-    Servo1.write(-90);
-    Servo2.write(0);
     setSpeedForAllServos(30);
 
     // Just wait for servos to reach position.
@@ -130,7 +135,7 @@ void loop() {
      * Now continue faster.
      */
 #ifdef INFO
-    Serial.println(F("Move to 90/10 degree with 60 degree per second using interrupts"));
+    Serial.println(F("Move to 90/10 degree with up to 60 degree per second using interrupts"));
 #endif
     Servo1.setEaseTo(90, 60);
     /*
@@ -152,7 +157,7 @@ void loop() {
      *  The second will be synchronized to slower speed (longer duration, than specified) because it has to move only 80 degree.
      */
 #ifdef INFO
-    Serial.println(F("Move to 0/90 degree with 90 degree per second using interrupts. Use cubic easing for first servo."));
+    Serial.println(F("Move to 0/90 degree with up to 90 degree per second using interrupts. Use cubic easing for first servo."));
 #endif
     Servo1.setEasingType(EASE_CUBIC_IN_OUT);
     /*

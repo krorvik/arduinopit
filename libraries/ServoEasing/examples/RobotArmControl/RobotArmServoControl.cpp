@@ -64,25 +64,25 @@ void setupRobotArmServos() {
      * Wait for pivot servo and then move horizontal one
      */
     delay(200);
-    HorizontalServo.attach(HORIZONTAL_SERVO_PIN, HORIZONTAL_ZERO_DEGREE_VALUE_MICROS, HORIZONTAL_AT_180_DEGREE_VALUE_MICROS);
-    HorizontalServo.write(HORIZONTAL_NEUTRAL_OFFSET_DEGREE);
+    HorizontalServo.attach(HORIZONTAL_SERVO_PIN, HORIZONTAL_NEUTRAL_OFFSET_DEGREE, HORIZONTAL_ZERO_DEGREE_VALUE_MICROS,
+            HORIZONTAL_AT_180_DEGREE_VALUE_MICROS);
     HorizontalServo.registerUserEaseInFunction(&moveInverseKinematicForHorizontal);
 
     /*
      * Wait for horizontal servo and then move lift and claw servos
      */
     delay(200);
-    LiftServo.attach(LIFT_SERVO_PIN, LIFT_ZERO_DEGREE_VALUE_MICROS, LIFT_AT_180_DEGREE_VALUE_MICROS);
-    ClawServo.attach(CLAW_SERVO_PIN);
-    LiftServo.write(LIFT_NEUTRAL_OFFSET_DEGREE);
-    ClawServo.write(CLAW_START_ANGLE);
+    LiftServo.attach(LIFT_SERVO_PIN, LIFT_NEUTRAL_OFFSET_DEGREE, LIFT_ZERO_DEGREE_VALUE_MICROS, LIFT_AT_180_DEGREE_VALUE_MICROS);
+    ClawServo.attach(CLAW_SERVO_PIN, CLAW_START_ANGLE);
 
     /*
      * Register functions for smooth moving with inverse kinematics
      */
     LiftServo.registerUserEaseInFunction(&moveInverseKinematicForLift);
 
-    Serial.println(F("Value for 0 degree=" STR(HORIZONTAL_ZERO_DEGREE_VALUE_MICROS) "us. Value for 180 degree=" STR(HORIZONTAL_AT_180_DEGREE_VALUE_MICROS) "us."));
+    Serial.println(
+            F(
+                    "Value for 0 degree=" STR(HORIZONTAL_ZERO_DEGREE_VALUE_MICROS) "us. Value for 180 degree=" STR(HORIZONTAL_AT_180_DEGREE_VALUE_MICROS) "us."));
 }
 
 void shutdownServos() {
@@ -421,7 +421,7 @@ void moveOneServoAndCheckInputAndWait(uint8_t aServoIndex, int aDegree) {
 void moveOneServoAndCheckInputAndWait(uint8_t aServoIndex, int aDegree, uint16_t aDegreesPerSecond) {
     ServoEasing::ServoEasingArray[aServoIndex]->startEaseTo(aDegree, aDegreesPerSecond, false);
     do {
-        if (!delayAndCheckForRobotArm(REFRESH_INTERVAL / 1000)) { // 20 ms - REFRESH_INTERVAL is in Microseconds
+        if (!delayAndCheckForRobotArm(REFRESH_INTERVAL_MILLIS)) { // 20 ms - REFRESH_INTERVAL is in Microseconds
             return;
         }
     } while (!ServoEasing::ServoEasingArray[aServoIndex]->update());
@@ -429,7 +429,7 @@ void moveOneServoAndCheckInputAndWait(uint8_t aServoIndex, int aDegree, uint16_t
 
 void updateAndCheckInputAndWaitForAllServosToStop() {
     do {
-        if (!delayAndCheckForRobotArm(REFRESH_INTERVAL / 1000)) { // 20 ms - REFRESH_INTERVAL is in Microseconds
+        if (!delayAndCheckForRobotArm(REFRESH_INTERVAL_MILLIS)) { // 20 ms - REFRESH_INTERVAL is in Microseconds
             return;
         }
     } while (!updateAllServos());

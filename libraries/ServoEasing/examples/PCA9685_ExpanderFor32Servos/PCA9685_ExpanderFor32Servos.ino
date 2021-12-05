@@ -5,8 +5,9 @@
  *  The PCA9685 library was successfully tested with up to 3 expander boards.
  *
  *  *****************************************************************************************************************************
- *  !!! Activate line 40 "#define USE_PCA9685_SERVO_EXPANDER" in ServoEasing.h to make the expander example work !!!
- *  Otherwise you will see errors like: "PCA9685_Expander:44:46: error: 'Wire' was not declared in this scope"
+ *  !!! Activate the line "#define USE_PCA9685_SERVO_EXPANDER" in ServoEasing.h to make the expander example work !!!
+ *  Otherwise you will see errors like: "PCA9685_Expander.cpp:88:5: error: 'Wire' was not declared in this scope"
+ *  or "no matching function for call to 'ServoEasing::ServoEasing(int&, TwoWire*)'"
  *
  *  To access the library files from your sketch, you have to first use `Sketch > Show Sketch Folder (Ctrl+K)` in the Arduino IDE.
  *  Then navigate to the parallel `libraries` folder and select the library you want to access.
@@ -14,7 +15,7 @@
  *  If you did not yet store the example as your own sketch, then with Ctrl+K you are instantly in the right library folder.
  *  *****************************************************************************************************************************
  *
- *  Copyright (C) 2019  Armin Joachimsmeyer
+ *  Copyright (C) 2019-2021  Armin Joachimsmeyer
  *  armin.joachimsmeyer@gmail.com
  *
  *  This file is part of ServoEasing https://github.com/ArminJo/ServoEasing.
@@ -35,21 +36,16 @@
 
 #include <Arduino.h>
 
-/*!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
- * !!! Activate line 40 "#define USE_PCA9685_SERVO_EXPANDER" in ServoEasing.h to make the expander example work !!!
- * Otherwise you will see errors like: "PCA9685_Expander:44:46: error: 'Wire' was not declared in this scope"
- * For this example you must also modify MAX_EASING_SERVOS to 32 at line 88 in ServoEasing.h or commenting out
- * the line #define USE_ONLY_ONE_EXPANDER below
- !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!*/
-#include "ServoEasing.h"
+// Must specify this before the include of "ServoEasing.hpp"
+#define USE_PCA9685_SERVO_EXPANDER
+#define MAX_EASING_SERVOS 32
+
+#include "ServoEasing.hpp"
 
 //#define DEBUG // to see all ServoEasing's object info
 #define INFO // to see serial output of loop
 
-//#define USE_ONLY_ONE_EXPANDER // Reuse this example for one expander at PCA9685_DEFAULT_ADDRESS
-#if !defined(USE_ONLY_ONE_EXPANDER) && (MAX_EASING_SERVOS < 32)
-#warning You use at least 2 expanders but MAX_EASING_SERVOS is less than 32, so you have no space for 32 servos (which might be ok, since you must not use 16 servos on one expander)
-#endif
+//#define USE_ONLY_ONE_EXPANDER // Activate this to reuse this example for one expander at PCA9685_DEFAULT_ADDRESS
 
 // for ESP32 LED_BUILTIN is defined as static const uint8_t LED_BUILTIN = 2;
 #if !defined(LED_BUILTIN) && !defined(ESP32)
@@ -67,7 +63,6 @@
 
 #define NUMBER_OF_SERVOS MAX_EASING_SERVOS
 
-bool checkI2CConnection(uint8_t aI2CAddress);
 void getAndAttach16ServosToPCA9685Expander(uint8_t aPCA9685I2CAddress);
 #if defined (SP)
 uint16_t getFreeRam(void);
@@ -77,7 +72,7 @@ void setup() {
     pinMode(LED_BUILTIN, OUTPUT);
     Serial.begin(115200);
 #if defined(__AVR_ATmega32U4__) || defined(SERIAL_USB) || defined(SERIAL_PORT_USBVIRTUAL)  || defined(ARDUINO_attiny3217)
-    delay(2000); // To be able to connect Serial monitor after reset or power up and before first printout
+    delay(4000); // To be able to connect Serial monitor after reset or power up and before first print out. Do not wait for an attached Serial Monitor!
 #endif
     // Just to know which program is running on my Arduino
     Serial.println(F("START " __FILE__ " from " __DATE__ "\r\nUsing library version " VERSION_SERVO_EASING));
@@ -90,11 +85,11 @@ void setup() {
 #if defined (ARDUINO_ARCH_AVR) // Other platforms do not have this new function
     Wire.setWireTimeout(); // Sets default timeout of 25 ms.
 #endif
-    checkI2CConnection(FIRST_PCA9685_EXPANDER_ADDRESS);
+    checkI2CConnection(FIRST_PCA9685_EXPANDER_ADDRESS, &Serial);
     getAndAttach16ServosToPCA9685Expander(FIRST_PCA9685_EXPANDER_ADDRESS);
 
 #if !defined(USE_ONLY_ONE_EXPANDER)
-    if (checkI2CConnection(SECOND_PCA9685_EXPANDER_ADDRESS)) {
+    if (checkI2CConnection(SECOND_PCA9685_EXPANDER_ADDRESS, &Serial)) {
         Serial.println(F("Second PCA9685 expander not connected -> only 16 servos initialized"));
     } else {
         getAndAttach16ServosToPCA9685Expander(SECOND_PCA9685_EXPANDER_ADDRESS);
@@ -106,6 +101,7 @@ void setup() {
      * This is the position where the movement starts.
      *************************************************/
     writeAllServos(0);
+
 #ifdef DEBUG
     for (uint8_t i = 0; i <= ServoEasing::sServoArrayMaxIndex; ++i) {
         ServoEasing::ServoEasingArray[i]->print(&Serial);
@@ -153,45 +149,6 @@ void loop() {
     }
 
     delay(1000);
-}
-
-/*
- * Check if I2C communication is possible. If not, we will wait forever at endTransmission.
- * 0x40 is default PCA9685 address
- * @return true if error happened, i.e. device is not attached at this address.
- */
-bool checkI2CConnection(uint8_t aI2CAddress) {
-    bool tRetValue = false;
-    Serial.print(F("Try to communicate with I2C device at address=0x"));
-    Serial.println(aI2CAddress, HEX);
-    Serial.flush();
-#if defined (ARDUINO_ARCH_AVR) // Other platforms do not have this new function
-    do {
-        Wire.beginTransmission(aI2CAddress);
-        if (Wire.getWireTimeoutFlag()) {
-            Serial.println(F("Timeout accessing I2C bus. Wait for bus becoming available"));
-            Wire.clearWireTimeoutFlag();
-            delay(100);
-        } else {
-            break;
-        }
-    } while (true);
-#else
-    Wire.beginTransmission(aI2CAddress);
-#endif
-
-    uint8_t tWireReturnCode = Wire.endTransmission(true);
-    if (tWireReturnCode == 0) {
-        Serial.print(F("Found"));
-    } else {
-        Serial.print(F("Error code="));
-        Serial.print(tWireReturnCode);
-        Serial.print(F(". Communication with I2C was successful, but found no"));
-        tRetValue = true;
-    }
-    Serial.print(F(" I2C device attached at address: 0x"));
-    Serial.println(aI2CAddress, HEX);
-    return tRetValue;
 }
 
 /*

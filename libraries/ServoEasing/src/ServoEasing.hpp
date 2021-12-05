@@ -9,7 +9,7 @@
  *
  *  The AVR Servo library supports only one timer, which means not more than 12 servos are supported using this library.
  *
- *  Copyright (C) 2019  Armin Joachimsmeyer
+ *  Copyright (C) 2019-2021  Armin Joachimsmeyer
  *  armin.joachimsmeyer@gmail.com
  *
  *  This file is part of ServoEasing https://github.com/ArminJo/ServoEasing.
@@ -28,6 +28,9 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/gpl.html>.
  */
 
+#ifndef SERVOEASING_HPP
+#define SERVOEASING_HPP
+
 #include <Arduino.h>
 
 #include "ServoEasing.h"
@@ -42,7 +45,7 @@ Ticker Timer20ms;
 #include <HardwareTimer.h> // 4 timers and 3. timer is used for tone(), 2. for Servo
 /*
  * Use timer 4 as IRMP timer.
- * Timer 4 blocks PB6, PB7, PB8, PB9, so if you need one them as Servo output, you must choose another timer.
+ * Timer 4 blocks PB6, PB7, PB8, PB9, so if you require one of them as Servo output, you must choose another timer.
  */
 HardwareTimer Timer20ms(TIM4);
 
@@ -106,7 +109,7 @@ ServoEasing *ServoEasing::ServoEasingArray[MAX_EASING_SERVOS];
 int ServoEasing::ServoEasingNextPositionArray[MAX_EASING_SERVOS];
 
 #if defined(USE_PCA9685_SERVO_EXPANDER)
-#  if ! defined _BV
+#  if !defined _BV
 #  define _BV(bit) (1 << (bit))
 #  endif
 // Constructor with I2C address required
@@ -245,7 +248,7 @@ int ServoEasing::PCA9685UnitsToMicroseconds(int aPCA9685Units) {
 
 // Constructor without I2C address
 ServoEasing::ServoEasing() // @suppress("Class members should be properly initialized")
-#if ! defined(DO_NOT_USE_SERVO_LIB)
+#if !defined(DO_NOT_USE_SERVO_LIB)
 :
         Servo()
 #endif
@@ -270,6 +273,9 @@ ServoEasing::ServoEasing() // @suppress("Class members should be properly initia
 }
 
 /*
+ * Specify the microseconds values for 0 and 180 degree for the servo.
+ * The values can be determined by the EndPositionsTest example.
+ *
  * If USE_LEIGHTWEIGHT_SERVO_LIB is enabled:
  *      Return 0/false if not pin 9 or 10 else return aPin
  *      Pin number != 9 results in using pin 10.
@@ -286,8 +292,35 @@ uint8_t ServoEasing::attach(int aPin, int aMicrosecondsForServo0Degree, int aMic
     return attach(aPin, aMicrosecondsForServo0Degree, aMicrosecondsForServo180Degree, 0, 180);
 }
 
+/*
+ * Combination of attach with initial write.
+ */
+uint8_t ServoEasing::attach(int aPin, int aInitialDegree) {
+    return attach(aPin, aInitialDegree, DEFAULT_MICROSECONDS_FOR_0_DEGREE, DEFAULT_MICROSECONDS_FOR_180_DEGREE);
+}
+
+/*
+ * Specify the start value written to the servo and the microseconds values for 0 and 180 degree for the servo.
+ * The values can be determined by the EndPositionsTest example.
+ */
+uint8_t ServoEasing::attach(int aPin, int aInitialDegree, int aMicrosecondsForServo0Degree, int aMicrosecondsForServo180Degree) {
+    return attach(aPin, aInitialDegree, aMicrosecondsForServo0Degree, aMicrosecondsForServo180Degree, 0, 180);
+}
+
+/*
+ * The microseconds values at aServoLowDegree and aServoHighDegree are used to compute the microseconds values at 0 and 180 degrees
+ * and can be used e.g. to run the servo from virtual -90 to +90 degree (See TwoServos example).
+ */
+uint8_t ServoEasing::attach(int aPin, int aInitialDegree, int aMicrosecondsForServoLowDegree, int aMicrosecondsForServoHighDegree,
+        int aServoLowDegree, int aServoHighDegree) {
+    uint8_t tReturnValue = attach(aPin, aMicrosecondsForServoLowDegree, aMicrosecondsForServoHighDegree, aServoLowDegree,
+            aServoHighDegree);
+    write(aInitialDegree);
+    return tReturnValue;
+}
+
 /**
- * Attaches servo to pin and sets the servo timing parameters
+ * Attaches servo to pin and sets the servo timing parameters.
  * @param aMicrosecondsForServoLowDegree no units accepted, only microseconds!
  * @param aServoLowDegree can be negative. For this case an appropriate trim value is added, since this is the only way to handle negative values.
  * @return If USE_LEIGHTWEIGHT_SERVO_LIB is enabled:
@@ -327,21 +360,22 @@ uint8_t ServoEasing::attach(int aPin, int aMicrosecondsForServoLowDegree, int aM
     /*
      * Now put this servo instance into list of servos
      */
-    mServoIndex = INVALID_SERVO; // flag indicating an invalid servo index
+    uint8_t tReturnValue = INVALID_SERVO; // flag indicating an invalid servo index
     for (uint_fast8_t tServoIndex = 0; tServoIndex < MAX_EASING_SERVOS; ++tServoIndex) {
         if (ServoEasingArray[tServoIndex] == NULL) {
             ServoEasingArray[tServoIndex] = this;
-            mServoIndex = tServoIndex;
+            tReturnValue = tServoIndex;
             if (tServoIndex > sServoArrayMaxIndex) {
                 sServoArrayMaxIndex = tServoIndex;
             }
             break;
         }
     }
+    mServoIndex = tReturnValue;
 
 #if defined(TRACE)
     Serial.print("Index=");
-    Serial.print(mServoIndex);
+    Serial.print(tReturnValue);
     Serial.print(" pin=");
     Serial.print(mServoPin);
     Serial.print(" low=");
@@ -357,22 +391,23 @@ uint8_t ServoEasing::attach(int aPin, int aMicrosecondsForServoLowDegree, int aM
 #endif
 
 #if defined(USE_PCA9685_SERVO_EXPANDER)
+    mCurrentMicrosecondsOrUnits = DEFAULT_PCA9685_UNITS_FOR_90_DEGREE; // The start value if we forget the initial write()
 #  if defined(USE_SERVO_LIB)
     if (mServoIsConnectedToExpander) {
-        if (mServoIndex == 0) {
+        if (tReturnValue == 0) {
             I2CInit();          // init only once
             PCA9685Reset();     // reset only once
         }
         PCA9685Init(); // initialize at every attach is simpler but initializing once for every board would be sufficient.
-        return mServoIndex;
+        return tReturnValue;
     }
 #  else
-    if (mServoIndex == 0) {
+    if (tReturnValue == 0) {
         I2CInit();          // init only once
         PCA9685Reset();     // reset only once
     }
     PCA9685Init(); // initialize at every attach is simpler but initializing once for every board would be sufficient.
-    return mServoIndex;
+    return tReturnValue;
 #  endif
 #elif defined(USE_LEIGHTWEIGHT_SERVO_LIB)
     if(aPin != 9 && aPin != 10) {
@@ -381,17 +416,22 @@ uint8_t ServoEasing::attach(int aPin, int aMicrosecondsForServoLowDegree, int aM
     return aPin;
 #endif // defined(USE_PCA9685_SERVO_EXPANDER)
 
-#if ! defined(DO_NOT_USE_SERVO_LIB)
-    if (mServoIndex == INVALID_SERVO) {
-        return INVALID_SERVO;
+#if !defined(DO_NOT_USE_SERVO_LIB)
+    // This error value has priority over the regular return value from Servo::attach()
+    if (tReturnValue == INVALID_SERVO) {
+        return tReturnValue;
     }
+    mCurrentMicrosecondsOrUnits = DEFAULT_PULSE_WIDTH;
+    /*
+     * Call attach() of the underlying Servo library
+     */
 #  if defined(ARDUINO_ARCH_APOLLO3)
     Servo::attach(aPin, tMicrosecondsForServo0Degree, tMicrosecondsForServo180Degree);
     return aPin; // Sparkfun apollo3 Servo library has no return value for attach :-(
 #  else
     return Servo::attach(aPin, tMicrosecondsForServo0Degree, tMicrosecondsForServo180Degree);
 #  endif
-#endif //! defined(DO_NOT_USE_SERVO_LIB)
+#endif //!defined(DO_NOT_USE_SERVO_LIB)
 }
 
 void ServoEasing::detach() {
@@ -476,6 +516,9 @@ void ServoEasing::registerUserEaseInFunction(float (*aUserEaseInFunction)(float 
 }
 #endif
 
+/*
+ * @param aValue treat values less than 400 as angles in degrees, others are handled as microseconds
+ */
 void ServoEasing::write(int aValue) {
 #if defined(TRACE)
     Serial.print(F("write "));
@@ -503,7 +546,7 @@ void ServoEasing::write(int aValue) {
 /**
  * Before sending the value to the underlying Servo library, trim and reverse is applied
  */
-void ServoEasing::writeMicrosecondsOrUnits(int aValue) {
+void ServoEasing::writeMicrosecondsOrUnits(int aMicrosecondsOrUnits) {
     /*
      * Check for valid initialization of servo.
      */
@@ -514,39 +557,39 @@ void ServoEasing::writeMicrosecondsOrUnits(int aValue) {
         return;
     }
 
-    mCurrentMicrosecondsOrUnits = aValue;
+    mCurrentMicrosecondsOrUnits = aMicrosecondsOrUnits;
 
 #if defined(TRACE)
     Serial.print(mServoIndex);
     Serial.print('/');
     Serial.print(mServoPin);
     Serial.print(F(" us/u="));
-    Serial.print(aValue);
+    Serial.print(aMicrosecondsOrUnits);
     if (mTrimMicrosecondsOrUnits != 0) {
         Serial.print(" t=");
-        Serial.print(aValue + mTrimMicrosecondsOrUnits);
+        Serial.print(aMicrosecondsOrUnits + mTrimMicrosecondsOrUnits);
     }
 #endif // TRACE
 
 // Apply trim - this is the only place mTrimMicrosecondsOrUnits is evaluated
-    aValue += mTrimMicrosecondsOrUnits;
+    aMicrosecondsOrUnits += mTrimMicrosecondsOrUnits;
 // Apply reverse, values for 0 to 180 are swapped if reverse - this is the only place mOperateServoReverse is evaluated
 // (except in the DegreeToMicrosecondsOrUnitsWithTrimAndReverse() function for external testing purposes)
     if (mOperateServoReverse) {
-        aValue = mServo180DegreeMicrosecondsOrUnits - (aValue - mServo0DegreeMicrosecondsOrUnits);
+        aMicrosecondsOrUnits = mServo180DegreeMicrosecondsOrUnits - (aMicrosecondsOrUnits - mServo0DegreeMicrosecondsOrUnits);
 #if defined(TRACE)
         Serial.print(F(" r="));
-        Serial.print(aValue);
+        Serial.print(aMicrosecondsOrUnits);
 #endif
     }
 
 #if defined(PRINT_FOR_SERIAL_PLOTTER)
     Serial.print(' ');
-    Serial.print(aValue);
+    Serial.print(aMicrosecondsOrUnits);
 #endif
 
 #if defined(USE_LEIGHTWEIGHT_SERVO_LIB)
-    writeMicrosecondsLightweightServo(aValue, (mServoPin == 9));
+    writeMicrosecondsLightweightServo(aMicrosecondsOrUnits, (mServoPin == 9));
 
 #elif defined(USE_PCA9685_SERVO_EXPANDER)
 #  if defined(TRACE)
@@ -556,20 +599,20 @@ void ServoEasing::writeMicrosecondsOrUnits(int aValue) {
 #  endif
 #  if defined(USE_SERVO_LIB)
     if (mServoIsConnectedToExpander) {
-        setPWM(mServoPin * ((4096 - (DEFAULT_PCA9685_UNITS_FOR_180_DEGREE + 100)) / 15), aValue); // mServoPin * 233
+        setPWM(mServoPin * ((4096 - (DEFAULT_PCA9685_UNITS_FOR_180_DEGREE + 100)) / 15), aMicrosecondsOrUnits); // mServoPin * 233
     } else {
-        Servo::writeMicroseconds(aValue); // requires 7 탎
+        Servo::writeMicroseconds(aMicrosecondsOrUnits); // requires 7 탎
     }
 #  else
     /*
      * Distribute the servo start time over the 20 ms period.
      * Unexpectedly this even saves 20 bytes Flash for an ATmega328P
      */
-    setPWM(mServoPin * ((4096 - (DEFAULT_PCA9685_UNITS_FOR_180_DEGREE + 100)) / 15), aValue); // mServoPin * 233
+    setPWM(mServoPin * ((4096 - (DEFAULT_PCA9685_UNITS_FOR_180_DEGREE + 100)) / 15), aMicrosecondsOrUnits); // mServoPin * 233
 #  endif
 
 #else
-    Servo::writeMicroseconds(aValue); // requires 7 탎
+    Servo::writeMicroseconds(aMicrosecondsOrUnits); // requires 7 탎
 #endif
 
 #if defined(TRACE)
@@ -735,9 +778,9 @@ bool ServoEasing::startEaseTo(int aDegree, uint_fast16_t aDegreesPerSecond, bool
         tDegree = MicrosecondsOrUnitsToDegree(tDegree);
 #endif
     }
-    tMillisForCompleteMove = abs(tDegree - tCurrentAngle) * 1000L / aDegreesPerSecond;
+    tMillisForCompleteMove = abs(tDegree - tCurrentAngle) * MILLIS_IN_ONE_SECOND / aDegreesPerSecond;
 #else
-    tMillisForCompleteMove = abs(aDegree - tCurrentAngle) * 1000L / aDegreesPerSecond;
+    tMillisForCompleteMove = abs(aDegree - tCurrentAngle) * MILLIS_IN_ONE_SECOND / aDegreesPerSecond;
 #endif
 
 #ifndef PROVIDE_ONLY_LINEAR_MOVEMENT
@@ -846,7 +889,7 @@ bool ServoEasing::update() {
      * Linear movement: new position is: start position + total delta * (millis_done / millis_total aka "percentage of completion")
      * 40 탎 to compute
      */
-    uint_fast16_t tNewMicrosecondsOrUnits = mStartMicrosecondsOrUnits
+    int_fast16_t tNewMicrosecondsOrUnits = mStartMicrosecondsOrUnits
     + ((mDeltaMicrosecondsOrUnits * (int32_t) tMillisSinceStart) / mMillisForCompleteMove);
     /*
      * Write new position only if changed
@@ -988,6 +1031,9 @@ float ServoEasing::callEasingFunction(float aPercentageOfCompletion) {
 #endif //PROVIDE_ONLY_LINEAR_MOVEMENT
 
 bool ServoEasing::isMoving() {
+#if defined(ESP8266)
+    yield(); // Not required for ESP32, since our code is running on CPU1 and using yield seems to disturb the I2C interface
+#endif
     return mServoMoves;
 }
 
@@ -1028,13 +1074,20 @@ int ServoEasing::getMillisForCompleteMove() {
     return mMillisForCompleteMove;
 }
 
+/**
+ * Do a printDynamic() and a printStatic()
+ * @param aSerial The Print object on which to write, for Arduino you can use &Serial.
+ * @param doExtendedOutput Print also microseconds values for degrees.
+ */
 void ServoEasing::print(Print *aSerial, bool doExtendedOutput) {
     printDynamic(aSerial, doExtendedOutput);
     printStatic(aSerial);
 }
 
-/*
+/**
  * Prints values which may change from move to move.
+ * @param aSerial The Print object on which to write, for Arduino you can use &Serial.
+ * @param doExtendedOutput Print also microseconds values for degrees.
  */
 void ServoEasing::printDynamic(Print *aSerial, bool doExtendedOutput) {
 // pin is static but it is required for identifying the servo
@@ -1086,7 +1139,7 @@ void ServoEasing::printDynamic(Print *aSerial, bool doExtendedOutput) {
 
 /*
  * Prints values which normally does NOT change from move to move.
- * call with
+ * @param aSerial The Print object on which to write, for Arduino you can use &Serial.
  */
 void ServoEasing::printStatic(Print *aSerial) {
 
@@ -1190,7 +1243,7 @@ __attribute__((weak)) void handleServoTimerInterrupt()
 void enableServoEasingInterrupt() {
 #if defined(__AVR__)
 #  if defined(__AVR_ATmega1280__) || defined(__AVR_ATmega2560__)
-#    if defined(USE_PCA9685_SERVO_EXPANDER) && ! defined(USE_SERVO_LIB)
+#    if defined(USE_PCA9685_SERVO_EXPANDER) && !defined(USE_SERVO_LIB)
 // set timer 5 to 20 ms, since the servo library does not do this for us
     TCCR5A = _BV(WGM11);// FastPWM Mode mode TOP (20 ms) determined by ICR1 - non-inverting Compare Output mode OC1A+OC1B
     TCCR5B = _BV(WGM13) | _BV(WGM12) | _BV(CS11);// set prescaler to 8, FastPWM mode mode bits WGM13 + WGM12
@@ -1217,7 +1270,7 @@ void enableServoEasingInterrupt() {
     /*
      * Standard AVR use timer 1
      */
-#    if defined(USE_PCA9685_SERVO_EXPANDER) && ! defined(USE_SERVO_LIB)
+#    if defined(USE_PCA9685_SERVO_EXPANDER) && !defined(USE_SERVO_LIB)
 //    // set timer 1 to 20 ms, since the servo library does not do this for us
     TCCR1A = _BV(WGM11);     // FastPWM Mode mode TOP (20 ms) determined by ICR1 - non-inverting Compare Output mode OC1A+OC1B
     TCCR1B = _BV(WGM13) | _BV(WGM12) | _BV(CS11);     // set prescaler to 8, FastPWM mode mode bits WGM13 + WGM12
@@ -1392,7 +1445,7 @@ void disableServoEasingInterrupt() {
 
 //@formatter:on
 /*
- * 60 탎 for single servo + 160 탎 per servo if using I2C e.g.for PCA9685 expander at 400000 Hz or + 100 at 800000 Hz
+ * 60 탎 for single servo + 160 탎 per servo if using I2C e.g.for PCA9685 expander at 400 kHz or + 100 at 800 kHz
  * 20 탎 for last interrupt
  * The first servo pulse starts just after this interrupt routine has finished
  */
@@ -1492,6 +1545,10 @@ void synchronizeAndEaseToArrayPositions(uint_fast16_t aDegreesPerSecond) {
     synchronizeAllServosStartAndWaitForAllServosToStop();
 }
 
+/**
+ * Prints content of ServoNextPositionArray for debugging purposes.
+ * @param aSerial The Print object on which to write, for Arduino you can use &Serial.
+ */
 void printArrayPositions(Print *aSerial) {
 //    uint_fast8_t tServoIndex = 0;
     aSerial->print(F("ServoNextPositionArray="));
@@ -1639,6 +1696,8 @@ void updateAndWaitForAllServosToStop() {
 }
 
 /*
+ * @param aMillisDelay the milliseconds for blocking wait and update
+ * @param aTerminateDelayIfAllServosStopped if true, function returns before aMillisDelay if all servos are stopped
  * returns true if all Servos reached endAngle / stopped
  */
 bool delayAndUpdateAndWaitForAllServosToStop(unsigned long aMillisDelay, bool aTerminateDelayIfAllServosStopped) {
@@ -1785,3 +1844,56 @@ float EaseOutBounce(float aPercentageOfCompletion) {
     }
     return tRetval;
 }
+
+/************************************
+ * Convenience I2C check function
+ ***********************************/
+#if defined(USE_PCA9685_SERVO_EXPANDER)
+/*
+ * Check if I2C communication is possible. If not, we will wait forever at endTransmission.
+ * 0x40 is default PCA9685 address
+ * @param aSerial The Print object on which to write, for Arduino you can use &Serial.
+ * @return true if error happened, i.e. device is not attached at this address.
+ */
+#if defined(__AVR__)
+bool checkI2CConnection(uint8_t aI2CAddress, Print *aSerial) // saves 95 bytes flash
+#else
+bool checkI2CConnection(uint8_t aI2CAddress, Stream *aSerial) // Print has no flush()
+#endif
+        {
+
+    bool tRetValue = false;
+    aSerial->print(F("Try to communicate with I2C device at address=0x"));
+    aSerial->println(aI2CAddress, HEX);
+    aSerial->flush();
+#if defined (ARDUINO_ARCH_AVR) // Other platforms do not have this new function
+    do {
+        Wire.beginTransmission(aI2CAddress);
+        if (Wire.getWireTimeoutFlag()) {
+            aSerial->println(F("Timeout accessing I2C bus. Wait for bus becoming available"));
+            Wire.clearWireTimeoutFlag();
+            delay(100);
+        } else {
+            break;
+        }
+    } while (true);
+#else
+    Wire.beginTransmission(aI2CAddress);
+#endif
+
+    uint8_t tWireReturnCode = Wire.endTransmission(true);
+    if (tWireReturnCode == 0) {
+        aSerial->print(F("Found"));
+    } else {
+        aSerial->print(F("Error code="));
+        aSerial->print(tWireReturnCode);
+        aSerial->print(F(". Communication with I2C was successful, but found no"));
+        tRetValue = true;
+    }
+    aSerial->print(F(" I2C device attached at address: 0x"));
+    aSerial->println(aI2CAddress, HEX);
+    return tRetValue;
+}
+# endif // defined(USE_PCA9685_SERVO_EXPANDER)
+
+#endif // #ifndef SERVOEASING_HPP

@@ -5,8 +5,9 @@
  *  The PCA9685 library was successfully tested with 3 expander boards.
  *
  *  *****************************************************************************************************************************
- *  !!! Activate line 40 "#define USE_PCA9685_SERVO_EXPANDER" in ServoEasing.h to make the expander example work !!!
- *  Otherwise you will see errors like: "PCA9685_Expander:44:46: error: 'Wire' was not declared in this scope"
+ *  !!! Activate the line "#define USE_PCA9685_SERVO_EXPANDER" in ServoEasing.h to make the expander example work !!!
+ *  Otherwise you will see errors like: "PCA9685_Expander.cpp:70:46: error: 'Wire' was not declared in this scope"
+ *  or "no matching function for call to 'ServoEasing::ServoEasing(int&, TwoWire*)'"
  *
  *  To access the library files from your sketch, you have to first use `Sketch > Show Sketch Folder (Ctrl+K)` in the Arduino IDE.
  *  Then navigate to the parallel `libraries` folder and select the library you want to access.
@@ -14,7 +15,7 @@
  *  If you did not yet store the example as your own sketch, then with Ctrl+K you are instantly in the right library folder.
  *  *****************************************************************************************************************************
  *
- *  Copyright (C) 2019  Armin Joachimsmeyer
+ *  Copyright (C) 2019-2021  Armin Joachimsmeyer
  *  armin.joachimsmeyer@gmail.com
  *
  *  This file is part of ServoEasing https://github.com/ArminJo/ServoEasing.
@@ -35,11 +36,10 @@
 
 #include <Arduino.h>
 
-/*!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
- * !!! Activate line 40 "#define USE_PCA9685_SERVO_EXPANDER" in ServoEasing.h to make the expander example work !!!
- * Otherwise you will see errors like: "PCA9685_Expander:44:46: error: 'Wire' was not declared in this scope"
- !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!*/
-#include "ServoEasing.h"
+// Must specify this before the include of "ServoEasing.hpp"
+#define USE_PCA9685_SERVO_EXPANDER
+
+#include "ServoEasing.hpp"
 
 #define INFO // to see serial output of loop
 
@@ -65,16 +65,20 @@ const int SERVO1_PIN = 9;
  * Servo implementation libraries (Arduino Servo, Lightweight Servo and I2C Expansion Board)
  */
 #if defined(ARDUINO_SAM_DUE)
-ServoEasing Servo1(PCA9685_DEFAULT_ADDRESS, &Wire1); // If you use more than one PCA9685 you should consider to modify MAX_EASING_SERVOS at line 88 in ServoEasing.h
+ServoEasing Servo1(PCA9685_DEFAULT_ADDRESS, &Wire1); // If you use more than one PCA9685 you probably must modify MAX_EASING_SERVOS at line 88 in ServoEasing.h
 #else
-ServoEasing Servo1(PCA9685_DEFAULT_ADDRESS, &Wire); // If you use more than one PCA9685 you should consider to modify MAX_EASING_SERVOS at line 88 in ServoEasing.h
+ServoEasing Servo1(PCA9685_DEFAULT_ADDRESS, &Wire); // If you use more than one PCA9685 you probably must modify MAX_EASING_SERVOS at line 88 in ServoEasing.h
 #endif
+
+#define START_DEGREE_VALUE  0 // The degree value written to the servo at time of attach.
+
+void blinkLED();
 
 void setup() {
     pinMode(LED_BUILTIN, OUTPUT);
     Serial.begin(115200);
 #if defined(__AVR_ATmega32U4__) || defined(SERIAL_USB) || defined(SERIAL_PORT_USBVIRTUAL)  || defined(ARDUINO_attiny3217)
-    delay(2000); // To be able to connect Serial monitor after reset or power up and before first printout
+    delay(4000); // To be able to connect Serial monitor after reset or power up and before first print out. Do not wait for an attached Serial Monitor!
 #endif
     // Just to know which program is running on my Arduino
     Serial.println(F("START " __FILE__ " from " __DATE__ "\r\nUsing library version " VERSION_SERVO_EASING));
@@ -88,53 +92,28 @@ void setup() {
     Wire.begin();  // Starts with 100 kHz. Clock will eventually be increased at first attach() except for ESP32.
 #if defined (ARDUINO_ARCH_AVR) // Other platforms do not have this new function
     Wire.setWireTimeout(); // Sets default timeout of 25 ms.
-    do {
-        Wire.beginTransmission(PCA9685_DEFAULT_ADDRESS);
-        if (Wire.getWireTimeoutFlag()) {
-            Serial.println(F("Timeout accessing I2C bus. Wait for bus becoming available"));
-            Wire.clearWireTimeoutFlag();
-            delay(100);
-        } else {
-            break;
-        }
-    } while (true);
-
-#else
-    Wire.beginTransmission(PCA9685_DEFAULT_ADDRESS);
 #endif
-    uint8_t tWireReturnCode = Wire.endTransmission(true);
-
-    if (tWireReturnCode == 0) {
-        Serial.print(F("Found"));
-    } else {
-        Serial.print(F("Error code="));
-        Serial.print(tWireReturnCode);
-        Serial.print(F(". Communication with I2C was successful, but found no"));
-    }
-    Serial.print(F(" I2C device attached at address: 0x"));
-    Serial.println(PCA9685_DEFAULT_ADDRESS, HEX);
-
-    Serial.println(F("Attach servo to port 9 of PCA9685 expander"));
-    /*
-     * Check at least the last call to attach()
-     */
-    if (Servo1.attach(SERVO1_PIN) == INVALID_SERVO) {
-        Serial.println(
-                F("Error attaching servo - maybe MAX_EASING_SERVOS=" STR(MAX_EASING_SERVOS) " is to small to hold all servos"));
+    if (checkI2CConnection(PCA9685_DEFAULT_ADDRESS, &Serial)) {
+        Serial.println(F("PCA9685 expander not connected"));
         while (true) {
-            digitalWrite(LED_BUILTIN, HIGH);
-            delay(100);
-            digitalWrite(LED_BUILTIN, LOW);
-            delay(100);
+            blinkLED();
+        }
+    } else {
+        Serial.println(F("Attach servo to port 9 of PCA9685 expander"));
+        /************************************************************
+         * Attach servo to pin and set servos to start position.
+         * This is the position where the movement starts.
+         *
+         * Check at least the last call to attach()
+         ***********************************************************/
+        if (Servo1.attach(SERVO1_PIN, START_DEGREE_VALUE) == INVALID_SERVO) {
+            Serial.println(
+                    F("Error attaching servo - maybe MAX_EASING_SERVOS=" STR(MAX_EASING_SERVOS) " is to small to hold all servos"));
+            while (true) {
+                blinkLED();
+            }
         }
     }
-
-    /**************************************************
-     * Set servos to start position.
-     * This is the position where the movement starts.
-     *************************************************/
-    Servo1.write(0);
-
     // Wait for servos to reach start position.
     delay(500);
 }

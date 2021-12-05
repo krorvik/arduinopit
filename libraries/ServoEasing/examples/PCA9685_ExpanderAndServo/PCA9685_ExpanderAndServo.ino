@@ -6,8 +6,9 @@
  *  The PCA9685 library was successfully tested with 3 expander boards.
  *
  *  *****************************************************************************************************************************
- *  !!! Activate line 40 "#define USE_PCA9685_SERVO_EXPANDER" in ServoEasing.h to make the expander example work !!!
- *  Otherwise you will see errors like: "PCA9685_Expander:44:46: error: 'Wire' was not declared in this scope"
+ *  !!! Activate the line "#define USE_PCA9685_SERVO_EXPANDER" in ServoEasing.h to make the expander example work !!!
+ *  Otherwise you will see errors like: "PCA9685_Expander.cpp:72:46: error: 'Wire' was not declared in this scope"
+ *  or "no matching function for call to 'ServoEasing::ServoEasing(int&, TwoWire*)'"
  *
  *  To access the library files from your sketch, you have to first use `Sketch > Show Sketch Folder (Ctrl+K)` in the Arduino IDE.
  *  Then navigate to the parallel `libraries` folder and select the library you want to access.
@@ -15,7 +16,7 @@
  *  If you did not yet store the example as your own sketch, then with Ctrl+K you are instantly in the right library folder.
  *  *****************************************************************************************************************************
  *
- *  Copyright (C) 2019  Armin Joachimsmeyer
+ *  Copyright (C) 2019-2021  Armin Joachimsmeyer
  *  armin.joachimsmeyer@gmail.com
  *
  *  This file is part of ServoEasing https://github.com/ArminJo/ServoEasing.
@@ -36,11 +37,11 @@
 
 #include <Arduino.h>
 
-/*!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
- * !!! Activate line 40 "#define USE_PCA9685_SERVO_EXPANDER" in ServoEasing.h to make the expander example work !!!
- * Otherwise you will see errors like: "PCA9685_Expander:44:46: error: 'Wire' was not declared in this scope"
- !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!*/
-#include "ServoEasing.h"
+// Must specify this before the include of "ServoEasing.hpp"
+#define USE_PCA9685_SERVO_EXPANDER
+#define USE_SERVO_LIB
+
+#include "ServoEasing.hpp"
 
 #define INFO // to see serial output of loop
 
@@ -67,18 +68,22 @@ const int SERVO1_PIN = 9;
  * Servo implementation libraries (Arduino Servo, Lightweight Servo and I2C Expansion Board)
  */
 #if defined(ARDUINO_SAM_DUE)
-ServoEasing Servo1AtPCA9685(PCA9685_DEFAULT_ADDRESS, &Wire1); // If you use more than one PCA9685 you should modify MAX_EASING_SERVOS at line 88 in ServoEasing.h
+ServoEasing Servo1AtPCA9685(PCA9685_DEFAULT_ADDRESS, &Wire1); // If you use more than one PCA9685 you probably must modify MAX_EASING_SERVOS at line 88 in ServoEasing.h
 #else
-ServoEasing Servo1AtPCA9685(PCA9685_DEFAULT_ADDRESS, &Wire); // If you use more than one PCA9685 you should modify MAX_EASING_SERVOS at line 88 in ServoEasing.h
+ServoEasing Servo1AtPCA9685(PCA9685_DEFAULT_ADDRESS, &Wire); // If you use more than one PCA9685 you probably must modify MAX_EASING_SERVOS at line 88 in ServoEasing.h
 #endif
 
 ServoEasing Servo1;
+
+#define START_DEGREE_VALUE  0 // The degree value written to the servo at time of attach.
+
+void blinkLED();
 
 void setup() {
     pinMode(LED_BUILTIN, OUTPUT);
     Serial.begin(115200);
 #if defined(__AVR_ATmega32U4__) || defined(SERIAL_USB) || defined(SERIAL_PORT_USBVIRTUAL)  || defined(ARDUINO_attiny3217)
-    delay(2000); // To be able to connect Serial monitor after reset or power up and before first printout
+    delay(4000); // To be able to connect Serial monitor after reset or power up and before first print out. Do not wait for an attached Serial Monitor!
 #endif
     // Just to know which program is running on my Arduino
     Serial.println(F("START " __FILE__ " from " __DATE__ "\r\nUsing library version " VERSION_SERVO_EASING));
@@ -117,35 +122,34 @@ void setup() {
     }
     Serial.print(F(" I2C device attached at address: 0x"));
     Serial.println(PCA9685_DEFAULT_ADDRESS, HEX);
-
-    Serial.println(F("Attach servo to port 9 of PCA9685 expander"));
-    /*
-     * Attach the expander servos first!
-     */
-    if (Servo1AtPCA9685.attach(SERVO1_PCA9685_PIN) == INVALID_SERVO) {
-        Serial.println(
-                F("Error attaching servo - maybe MAX_EASING_SERVOS=" STR(MAX_EASING_SERVOS) " is to small to hold all servos"));
+    if (checkI2CConnection(PCA9685_DEFAULT_ADDRESS, &Serial)) {
+        Serial.println(F("PCA9685 expander not connected"));
         while (true) {
-            digitalWrite(LED_BUILTIN, HIGH);
-            delay(100);
-            digitalWrite(LED_BUILTIN, LOW);
-            delay(100);
+            blinkLED();
+        }
+    } else {
+        Serial.println(F("Attach servo to port 9 of PCA9685 expander"));
+        /************************************************************
+         * Attach servo to pin and set servos to start position.
+         * This is the position where the movement starts.
+         *
+         * Attach the expander servos first
+         ***********************************************************/
+        if (Servo1AtPCA9685.attach(SERVO1_PCA9685_PIN, START_DEGREE_VALUE) == INVALID_SERVO) {
+            Serial.println(
+                    F("Error attaching servo - maybe MAX_EASING_SERVOS=" STR(MAX_EASING_SERVOS) " is to small to hold all servos"));
+            while (true) {
+                blinkLED();
+            }
         }
     }
 
-    // Attach servo to pin
+    // Attach servo to pin and set servos to start position.
     Serial.print(F("Attach servo at pin "));
-    Serial.println(SERVO1_PIN);
+    Serial.println(SERVO1_PIN, START_DEGREE_VALUE);
     if (Servo1.attach(SERVO1_PIN) == INVALID_SERVO) {
         Serial.println(F("Error attaching servo"));
     }
-
-    /**************************************************
-     * Set servos to start position.
-     * This is the position where the movement starts.
-     *************************************************/
-    Servo1.write(0);
-    Servo1AtPCA9685.write(0);
 
     // Wait for servos to reach start position.
     delay(500);
@@ -167,7 +171,7 @@ void loop() {
     Servo1AtPCA9685.setSpeed(10);  // This speed is taken if no further speed argument is given.
     Servo1.startEaseTo(90);
     Servo1AtPCA9685.startEaseTo(90);
-    updateAndWaitForAllServosToStop(); // blocking wait
+    updateAndWaitForAllServosToStop();  // blocking wait
 
     // Now move faster without any delay between the moves
 #ifdef INFO
@@ -202,9 +206,9 @@ void loop() {
 #endif
     Servo1.setEasingType(EASE_CUBIC_IN_OUT);
     Servo1AtPCA9685.setEasingType(EASE_CUBIC_IN_OUT);
-/*
- * Move both servos in opposite directions
- */
+    /*
+     * Move both servos in opposite directions
+     */
     for (int i = 0; i < 2; ++i) {
         Servo1.startEaseToD(45, 1000);
         Servo1AtPCA9685.startEaseToD(135, 1000);

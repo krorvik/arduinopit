@@ -1,11 +1,12 @@
 # FastAccelStepper 
  
+![GitHub tag](https://img.shields.io/github/v/tag/gin66/FastAccelStepper.svg?sort=semver&no_cache_0.23.3)
 ![Run tests](https://github.com/gin66/FastAccelStepper/workflows/Run%20tests/badge.svg?no_cache_0.23.3)
 ![Simvar tests](https://github.com/gin66/FastAccelStepper/workflows/Run%20tests%20with%20simavr/badge.svg?no_cache_0.23.3)
-![GitHub tag](https://img.shields.io/github/v/tag/gin66/FastAccelStepper.svg?sort=semver&no_cache_0.23.3)
-![Build examples](https://github.com/gin66/FastAccelStepper/workflows/Build%20examples/badge.svg?no_cache_0.23.3)
-
-ATTENTION: `framework-arduinoespressif32 @ 3.10006.210326` will lead to compile error for esp32 !!!
+[![Build examples for esp32arduino @ 3.4.0](https://github.com/gin66/FastAccelStepper/actions/workflows/build_examples_esp32arduinoV340.yml/badge.svg)](https://github.com/gin66/FastAccelStepper/actions/workflows/build_examples_esp32arduinoV340.yml)
+[![Build examples for Atmega2560](https://github.com/gin66/FastAccelStepper/actions/workflows/build_examples_atmega2560.yml/badge.svg)](https://github.com/gin66/FastAccelStepper/actions/workflows/build_examples_atmega2560.yml)
+[![Build examples for Atmel SAM](https://github.com/gin66/FastAccelStepper/actions/workflows/build_examples_atmelsam.yml/badge.svg)](https://github.com/gin66/FastAccelStepper/actions/workflows/build_examples_atmelsam.yml)
+[![Build examples for Atmega328](https://github.com/gin66/FastAccelStepper/actions/workflows/build_examples_nanoatmega328.yml/badge.svg)](https://github.com/gin66/FastAccelStepper/actions/workflows/build_examples_nanoatmega328.yml)
 
 This is an high speed alternative for the [AccelStepper library](http://www.airspayce.com/mikem/arduino/AccelStepper/). Supported are avr (ATmega 328, ATmega2560), esp32 and atmelsam due.
 
@@ -38,6 +39,7 @@ FastAccelStepper offers the following features:
 * Auto enable mode: stepper motor is enabled before movement and disabled afterwards with configurable delays
 * Enable pins can be shared between motors
 * Direction pins can be shared between motors
+* Configurable delay between direction change and following step
 * External callback function can be used to drive the enable pins (e.g. connected to shift register)
 * No float calculation (use own implementation of poor man float: 8 bit mantissa+8 bit exponent)
 * Provide API to each steppers' command queue. Those commands are tied to timer ticks aka the CPU frequency!
@@ -242,6 +244,12 @@ The low level command queue for each stepper allows direct speed control - when 
 
 For coordinated movement of two or more axis, the current ramp generation will not provide good results. The planning of steps needs to take into consideration max.speed/acceleration of all steppers and eventually the net speed/acceleration of the resulting movement together with its restrictions. Nice example of multi-axis forward planning can be found within the [marlin-project](https://github.com/MarlinFirmware/Marlin/tree/2.0.x/Marlin/src/module). If this kind of multi-dimensional planning is used, then FastAccelStepper is a good solution to execute the raw commands (without ramp generation) with near-synchronous start of involved steppers. With the tick-exact execution of commands, the synchronization will not be lost as long as the command queues are not running out of commands. And for esp32, second requirement is, that the interrupts can be serviced on time (no pulses issued with previous command's pulse period time)
 
+To keep up the synchronization of two steppers please keep in mind:
+* The stepper queue will on initial start, if configured, add pauses to the command queue to implement enable delay.
+  => Perhaps best to not use enable on delay
+* If the stepper is configured for delays for direction change, then one pause is added to the command queue for each direction change together with a step.
+  => Execute direction change together with a pause or do not configure direction change delay
+
 ## TODO
 
 See [project](https://github.com/gin66/FastAccelStepper/projects/1)
@@ -317,6 +325,9 @@ See [changelog](https://github.com/gin66/FastAccelStepper/blob/master/CHANGELOG)
 ## ISSUES
 
 * There is an issue with the esp32 mcpwm: as soon as the mcpwm timer is running, on every cycle an interrupt is serviced - even though no interrupt is enabled. If several steppers are running at high step rate, the interrupt load for this nonsense interrupt could be quite high for the CPU. Need further investigation, but till now haven't found the root cause.
+* Compilation using esp-idf 4.4 will yield a deprecation warning for `mcpwm_isr_register()`. This has been raised as [issue](https://github.com/espressif/esp-idf/issues/7890) at espressif
+* `framework-arduinoespressif32 @ 3.10006.210326` and later will lead to compile error for esp32, if using compiler options `-Werror -Wall` !!! The problem can be circumvented by applying `-Wno-error=incompatible-pointer-types`
+
 
 ## Error investigation
 
@@ -349,6 +360,7 @@ Found on youtube:
 * [Neck mechanism](https://www.youtube.com/watch?v=rY7NDBnz7Cw)
 * [Stepper motor at 1500RPM with ESP32 and A4988](https://www.youtube.com/watch?v=sQqezEsiuUU)
 * [DIY 3 AXIS CAMERA SLIDER | MOTORIZED CAMERA SLIDER](https://youtu.be/7TkybpSQULk)
+* [NEMA 17 Servo: Final Accuracy Test & New Speed Record!! - N-Gnoid TV](https://www.youtube.com/watch?v=EHHDuI3xK94)
 
 ## Contribution
 

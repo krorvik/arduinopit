@@ -31,6 +31,8 @@
 
 #include <Arduino.h>
 
+#define DISABLE_COMPLEX_FUNCTIONS
+#include "ServoEasing.hpp"    // include ServoEasing library source code
 #include "QuadrupedServoConfiguration.h"
 #include "QuadrupedServoControl.h"
 #include "QuadrupedControl.h"
@@ -369,7 +371,7 @@ void moveOneServoAndCheckInputAndWait(uint8_t aServoIndex, int aDegree) {
 void moveOneServoAndCheckInputAndWait(uint8_t aServoIndex, int aDegree, uint16_t aDegreesPerSecond) {
     ServoEasing::ServoEasingArray[aServoIndex]->startEaseTo(aDegree, aDegreesPerSecond, false);
     do {
-        if (delayAndCheck(REFRESH_INTERVAL / 1000)) { // 20 ms - REFRESH_INTERVAL is in Microseconds
+        if (delayAndCheck(REFRESH_INTERVAL_MILLIS)) { // 20 ms - REFRESH_INTERVAL is in Microseconds
             return;
         }
     } while (!ServoEasing::ServoEasingArray[aServoIndex]->update());
@@ -377,7 +379,7 @@ void moveOneServoAndCheckInputAndWait(uint8_t aServoIndex, int aDegree, uint16_t
 
 void updateAndCheckInputAndWaitForAllServosToStop() {
     do {
-        if (delayAndCheck(REFRESH_INTERVAL / 1000)) { // 20 ms - REFRESH_INTERVAL is in Microseconds
+        if (delayAndCheck(REFRESH_INTERVAL_MILLIS)) { // 20 ms - REFRESH_INTERVAL is in Microseconds
             return;
         }
     } while (!updateAllServos());

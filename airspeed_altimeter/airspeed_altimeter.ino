@@ -39,10 +39,6 @@ const unsigned int airspeedSetPins[] = {2, 3};
 bool wow_nose = true;
 bool wow_right = true;
 bool wow_left = true;
-// Keep track of the dcs bios update counter
-uint8_t dcs_counter_bios = 0;
-uint8_t dcs_counter_local = 0;
-boolean dcs_started = false;
 
 bool isWow() {
   return wow_nose and wow_left and wow_right;
@@ -205,7 +201,6 @@ void onAlt10000FtCntChange(unsigned int newValue) {
 
 // Hook up stuff to do at end of dcs bios updates (all values are set at this point)
 void onUpdateCounterChange(unsigned int newValue) {
-  dcs_counter_bios = newValue;
   airspeedStepper->moveTo(translate_ias(airspeed));
   altStepper->moveTo((int32_t) (alt_100_steps + alt_1k_steps  + alt_10k_steps));
   displayAlt();
@@ -252,21 +247,7 @@ void setup() {
 
 void loop() {    
   //Loop all encoders if dcs has not started yet
-  if (not dcs_started) {
-      altEncoder.loop();
-      airspeedEncoder.loop();
-  }
-
-  if (dcs_counter_local != dcs_counter_bios) {
-    // If not already started, need to reset needles
-    if (not dcs_started) {
-      airspeedStepper->setCurrentPosition(0);
-      altStepper->setCurrentPosition(0);
-      // and Mark DCS as started
-      dcs_started = true;
-    }        
-  }
-
-  dcs_counter_local = dcs_counter_bios;    
+  altEncoder.loop();
+  airspeedEncoder.loop();
   DcsBios::loop();
 }

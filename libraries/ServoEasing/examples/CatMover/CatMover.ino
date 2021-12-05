@@ -3,7 +3,7 @@
  *  Demo of using two servos in a pan tilt housing to move a laser pointer
  *
  *
- *  Copyright (C) 2019  Armin Joachimsmeyer
+ *  Copyright (C) 2019-2021  Armin Joachimsmeyer
  *  armin.joachimsmeyer@gmail.com
  *
  *  This file is part of ServoEasing https://github.com/ArminJo/ServoEasing.
@@ -25,7 +25,13 @@
 
 #include <Arduino.h>
 
-#include "ServoEasing.h"
+// Must specify this before the include of "ServoEasing.hpp"
+#if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
+#define USE_LEIGHTWEIGHT_SERVO_LIB
+#include "LightweightServo.hpp" // include sources of LightweightServo library
+#endif
+
+#include "ServoEasing.hpp"
 
 #include "PinDefinitionsAndMore.h"
 /*
@@ -55,11 +61,13 @@ ServoControlStruct ServoVerticalControl;
 ServoEasing ServoHorizontal;
 ServoEasing ServoVertical;
 
+#define START_DEGREE_VALUE 90 // This values helps mounting the pan / tilt housing
+
 void setup() {
     pinMode(LED_BUILTIN, OUTPUT);
     Serial.begin(115200);
 #if defined(__AVR_ATmega32U4__) || defined(SERIAL_USB) || defined(SERIAL_PORT_USBVIRTUAL)  || defined(ARDUINO_attiny3217)
-    delay(2000); // To be able to connect Serial monitor after reset or power up and before first printout
+    delay(4000); // To be able to connect Serial monitor after reset or power up and before first print out. Do not wait for an attached Serial Monitor!
 #endif
     // Just to know which program is running on my Arduino
     Serial.println(F("START " __FILE__ " from " __DATE__ "\r\nUsing library version " VERSION_SERVO_EASING));
@@ -68,12 +76,13 @@ void setup() {
     pinMode(LASER_POWER_PIN, OUTPUT);
     digitalWrite(LASER_POWER_PIN, HIGH);
 
-    /*
-     * Set up servos
-     */
+    /************************************************************
+     * Attach servo to pin and set servos to start position.
+     * This is the position where the movement starts.
+     ***********************************************************/
     Serial.print(F("Attach servo at pin "));
     Serial.println(HORIZONTAL_SERVO_PIN);
-    if (ServoHorizontal.attach(HORIZONTAL_SERVO_PIN) == INVALID_SERVO) {
+    if (ServoHorizontal.attach(HORIZONTAL_SERVO_PIN, START_DEGREE_VALUE) == INVALID_SERVO) {
         Serial.println(F("Error attaching servo"));
     }
 
@@ -82,7 +91,7 @@ void setup() {
      */
     Serial.print(F("Attach servo at pin "));
     Serial.println(VERTICAL_SERVO_PIN);
-    if (ServoVertical.attach(VERTICAL_SERVO_PIN) == INVALID_SERVO) {
+    if (ServoVertical.attach(VERTICAL_SERVO_PIN, START_DEGREE_VALUE) == INVALID_SERVO) {
         Serial.println(F("Error attaching servo"));
         while (true) {
             digitalWrite(LED_BUILTIN, HIGH);
@@ -97,15 +106,7 @@ void setup() {
     ServoVerticalControl.minDegree = 0;
     ServoVerticalControl.maxDegree = 45;
 
-    /**************************************************
-     * Set servos to start position.
-     * This is the position where the movement starts.
-     *************************************************/
-    // This values helps mounting the pan / tilt housing
-    ServoHorizontal.write(90);
-    ServoVertical.write(90);
-
-    delay(4000);
+    delay(4000); // This values helps mounting the pan / tilt housing
 
     /*
      * show border of area which can be reached by laser

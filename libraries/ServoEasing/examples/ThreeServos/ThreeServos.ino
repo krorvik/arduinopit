@@ -3,7 +3,7 @@
  *
  *  Shows smooth movement from one servo position to another for 3 servos synchronously.
  *
- *  Copyright (C) 2019  Armin Joachimsmeyer
+ *  Copyright (C) 2019-2021  Armin Joachimsmeyer
  *  armin.joachimsmeyer@gmail.com
  *
  *  This file is part of ServoEasing https://github.com/ArminJo/ServoEasing.
@@ -24,10 +24,11 @@
 
 #include <Arduino.h>
 
-/*
- * To generate the Arduino plotter output, you must activate the line #define PRINT_FOR_SERIAL_PLOTTER in ServoEasing.h
- */
-#include "ServoEasing.h"
+// Must specify this before the include of "ServoEasing.hpp"
+//#define PRINT_FOR_SERIAL_PLOTTER // Activate this to generate the Arduino plotter output
+#define PROVIDE_ONLY_LINEAR_MOVEMENT
+
+#include "ServoEasing.hpp"
 
 #include "PinDefinitionsAndMore.h"
 /*
@@ -46,36 +47,39 @@ ServoEasing Servo1;
 ServoEasing Servo2;
 ServoEasing Servo3;
 
+#define START_DEGREE_VALUE  0 // The degree value written to the servo at time of attach.
+
 void blinkLED();
 
 void setup() {
     pinMode(LED_BUILTIN, OUTPUT);
     Serial.begin(115200);
 #if defined(__AVR_ATmega32U4__) || defined(SERIAL_USB) || defined(SERIAL_PORT_USBVIRTUAL)  || defined(ARDUINO_attiny3217)
-    delay(2000); // To be able to connect Serial monitor after reset or power up and before first printout
+    delay(4000); // To be able to connect Serial monitor after reset or power up and before first print out. Do not wait for an attached Serial Monitor!
 #endif
     // Just to know which program is running on my Arduino
 #ifndef PRINT_FOR_SERIAL_PLOTTER
     Serial.println(F("START " __FILE__ " from " __DATE__ "\r\nUsing library version " VERSION_SERVO_EASING));
 #endif
 
-    // Attach servos to pins
-    // The order of the attaches determine the position of the Servos in internal ServoEasing::ServoEasingArray[]
+    /************************************************************
+     * Attach servo to pin and set servos to start position.
+     * This is the position where the movement starts.
+     *
+     * The order of the attach() determine the position
+     * of the Servos in internal ServoEasing::ServoEasingArray[]
+     ***********************************************************/
 #ifndef PRINT_FOR_SERIAL_PLOTTER
     Serial.print(F("Attach servo at pin "));
     Serial.println(SERVO1_PIN);
 #endif
-    if (Servo1.attach(SERVO1_PIN) == INVALID_SERVO) {
-        Serial.println(F("Error attaching servo"));
-    }
+    Servo1.attach(SERVO1_PIN, START_DEGREE_VALUE);
 
 #ifndef PRINT_FOR_SERIAL_PLOTTER
     Serial.print(F("Attach servo at pin "));
     Serial.println(SERVO2_PIN);
 #endif
-    if (Servo2.attach(SERVO2_PIN) == INVALID_SERVO) {
-        Serial.println(F("Error attaching servo"));
-    }
+    Servo2.attach(SERVO2_PIN, START_DEGREE_VALUE, DEFAULT_MICROSECONDS_FOR_0_DEGREE, DEFAULT_MICROSECONDS_FOR_180_DEGREE);
 
     /*
      * Check at least the last call to attach()
@@ -84,26 +88,22 @@ void setup() {
     Serial.print(F("Attach servo at pin "));
     Serial.println(SERVO3_PIN);
 #endif
-    if (Servo3.attach(SERVO3_PIN) == INVALID_SERVO) {
-        Serial.println(F("Error attaching servo - maybe MAX_EASING_SERVOS=" STR(MAX_EASING_SERVOS) " is to small to hold all servos"));
+    if (Servo3.attach(SERVO3_PIN, START_DEGREE_VALUE) == INVALID_SERVO) {
+        Serial.println(
+                F("Error attaching servo - maybe MAX_EASING_SERVOS=" STR(MAX_EASING_SERVOS) " is to small to hold all servos"));
         while (true) {
             blinkLED();
         }
     }
 
 #ifndef PRINT_FOR_SERIAL_PLOTTER
+    /*
+     * Print internal servo control data
+     */
     Servo1.print(&Serial);
     Servo2.print(&Serial);
-    ServoEasing::ServoEasingArray[2]->print(&Serial);; // "ServoEasing::ServoEasingArray[2]->" can be used instead of "Servo3."
+    ServoEasing::ServoEasingArray[2]->print(&Serial); // "ServoEasing::ServoEasingArray[2]->" can be used instead of "Servo3."
 #endif
-
-    /**************************************************
-     * Set servos to start position.
-     * This is the position where the movement starts.
-     *************************************************/
-    ServoEasing::ServoEasingArray[0]->write(0); // "ServoEasing::ServoEasingArray[0]->" can be used instead of "Servo1."
-    Servo2.write(0);
-    Servo3.write(0);
 
 #ifdef PRINT_FOR_SERIAL_PLOTTER
     // Legend for Arduino plotter
@@ -128,17 +128,19 @@ void loop() {
      * Move three servos synchronously without interrupt handler
      */
 #ifndef PRINT_FOR_SERIAL_PLOTTER
-    Serial.println(F("Move to 90/90/180 degree with 20 degree per second with updates by own do-while loop"));
+    Serial.println(F("Move to 90/135/180 degree with up to 20 degree per second with updates by own do-while loop"));
 #endif
-    setSpeedForAllServos(20); // this speed is changed for the first 2 servos below by synchronizing to the longest duration
-    ServoEasing::ServoEasingArray[0]->setEaseTo(90); // "ServoEasing::ServoEasingArray[0]->" can be used instead of "Servo1."
-    Servo2.setEaseTo(90);
-    Servo3.setEaseTo(180);
-    synchronizeAllServosAndStartInterrupt(false); // do not start interrupt
+    // this speed is changed for the first 2 servos below by synchronizing to the longest duration
+    setSpeedForAllServos(20);
+
+    ServoEasing::ServoEasingArray[0]->setEaseTo(90);    // This servo uses effectively 10 degrees per second, since it is synchronized to Servo3
+    ServoEasing::ServoEasingArray[1]->setEaseTo(135);   // "ServoEasing::ServoEasingArray[1]->" can be used instead of "Servo2."
+    Servo3.setEaseTo(180);                              // This servo has the longest distance -> it uses 20 degrees per second
+    synchronizeAllServosAndStartInterrupt(false);       // Do not start interrupt
 
     do {
         // here you can call your own program
-        delay(REFRESH_INTERVAL / 1000); // optional 20ms delay - REFRESH_INTERVAL is in Microseconds
+        delay(REFRESH_INTERVAL_MILLIS); // optional 20ms delay
     } while (!updateAllServos());
 
     delay(1000);
@@ -147,7 +149,7 @@ void loop() {
      * Move three servos synchronously with interrupt handler
      */
 #ifndef PRINT_FOR_SERIAL_PLOTTER
-    Serial.println(F("Move to 180/180/0 degree with 30 degree per second using interrupts"));
+    Serial.println(F("Move to 180/180/0 degree with up to 30 degree per second using interrupts"));
 #endif
     ServoEasing::ServoEasingNextPositionArray[0] = 180;
     ServoEasing::ServoEasingNextPositionArray[1] = 180;

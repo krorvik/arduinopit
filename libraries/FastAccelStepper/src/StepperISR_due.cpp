@@ -74,11 +74,13 @@ uint8_t TimerChannel_Map[NUM_PWM_CHANNELS];
 uint8_t numChannels = 0;
 
 // Here are the global variables to interface with the interrupts
-#if defined(KEEP_SCORE) //If you want to count how many pulses we detect...
+#if defined(KEEP_SCORE)  // If you want to count how many pulses we detect...
 volatile uint32_t totalPulsesDetected[NUM_QUEUES];
 volatile uint32_t totalSteps[NUM_QUEUES];
 inline void IncrementQueue(int queue) { totalPulsesDetected[queue]++; }
-inline void AddToTotalSteps(int queue, uint32_t steps) { totalSteps[queue] += steps; }
+inline void AddToTotalSteps(int queue, uint32_t steps) {
+  totalSteps[queue] += steps;
+}
 #else
 #define IncrementQueue(Q)
 #define AddToTotalSteps(Q, N)
@@ -162,7 +164,7 @@ void PWM_Handler(void) {
   // again or switch to outputting steps).  Pretty easy :)
 
   uint32_t sr = PWM_INTERFACE->PWM_ISR1;
-  //uint32_t sr2 = PWM_INTERFACE->PWM_ISR2;
+  // uint32_t sr2 = PWM_INTERFACE->PWM_ISR2;
   uint8_t leading_zeros;
   sr = sr & 0xFF;  // Ignore the faults, they will screw this up, and we
                    // shouldn't be getting faults...
@@ -274,6 +276,7 @@ void PWM_Handler(void) {
       uint32_t dwSR = port->PIO_ABSR;
       port->PIO_ABSR = (g_APinDescription[mapping->pin].ulPin | dwSR);
       // Remove the pins from under the control of PIO
+      port->PIO_ODR |= g_APinDescription[mapping->pin].ulPin;
       port->PIO_PDR = g_APinDescription[mapping->pin].ulPin;
       port->PIO_IER = g_APinDescription[mapping->pin].ulPin;
       q->_pauseCommanded = false;
@@ -351,7 +354,6 @@ inline void attachPWMPeripheral(Pio* port, uint8_t pin, uint32_t channelMask,
       if (e->toggle_dir) {                                                     \
         e->toggle_dir = 0;                                                     \
         *q->_dirPinPort ^= q->_dirPinMask;                                     \
-        delayMicroseconds(20);                                                 \
       }                                                                        \
       /*Check immediatly if we need to turn off the pulse generator.Time is    \
         critical! */                                                           \
@@ -617,7 +619,6 @@ void StepperQueue::commandAddedToQueue(bool start) {
   if (e->toggle_dir) {
     e->toggle_dir = 0;
     *_dirPinPort ^= _dirPinMask;
-    delayMicroseconds(30);
   }
   noInterrupts();
   bool first = (next_write_idx++ == read_idx);
@@ -663,20 +664,29 @@ void StepperQueue::commandAddedToQueue(bool start) {
   }
 }
 
-int8_t StepperQueue::startPreparedQueue() 
-{ 
+int8_t StepperQueue::startPreparedQueue() {
   if (next_write_idx == read_idx) {
     return AQE_ERROR_EMPTY_QUEUE_TO_START;
   }
 
-  uint32_t rp=read_idx;
+  uint32_t rp = read_idx;
   struct queue_entry* e = &entry[rp & QUEUE_LEN_MASK];
   _hasISRactive = true;
   _runOnce = false;
   _skipNextPWMInterrupt = false;
   PWM_INTERFACE->PWM_CH_NUM[mapping->channel].PWM_CPRD = e->ticks;
-  attachPWMPeripheral(mapping->port, mapping->pin, mapping->channelMask, true);
+  if (!e->hasSteps || e->steps == 0) {
+    _pauseCommanded = true;
+    timePWMInterruptEnabled = micros();
+    uint32_t samPin = g_APinDescription[mapping->pin].ulPin;
+    PWM_INTERFACE->PWM_IER1 = mapping->channelMask;
+    PWM_INTERFACE->PWM_CH_NUM[mapping->channel].PWM_CPRDUPD = e->ticks;
+    PWM_INTERFACE->PWM_ENA |= mapping->channelMask;
 
+  } else {
+    attachPWMPeripheral(mapping->port, mapping->pin, mapping->channelMask,
+                        true);
+  }
   return AQE_OK;
 }
 
@@ -696,9 +706,7 @@ bool StepperQueue::isValidStepPin(uint8_t step_pin) {
   return false;
 }
 
-bool StepperQueue::isRunning() {
-  return _hasISRactive;
-}
+bool StepperQueue::isRunning() { return _hasISRactive; }
 
 int8_t StepperQueue::queueNumForStepPin(uint8_t step_pin) { return -1; }
 #endif

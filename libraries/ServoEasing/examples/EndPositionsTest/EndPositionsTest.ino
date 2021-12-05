@@ -2,6 +2,7 @@
  * EndPositionsTest.cpp
  *
  *  Allows to determine the end position of the servo under test.
+ *  The values can be used in the call of attach(int aPin, int aInitialDegree, int aMicrosecondsForServo0Degree, int aMicrosecondsForServo180Degree)
  *  It is one of the 8 test modes from the SpeedTest example.
  *
  *  Turn the potentiometer until the servo begins to move and see the serial output for the value at this position.
@@ -10,7 +11,7 @@
  *  My Modelcraft RS-2 servo has 535 and 2400 micro seconds for 0 and 180 degree at 4.8 volt
  *  My M-1504 servo has 545 and 2325 micro seconds for 0 and 180 degree at 4.6 volt
  *
- *  Copyright (C) 2019  Armin Joachimsmeyer
+ *  Copyright (C) 2019-2021  Armin Joachimsmeyer
  *  armin.joachimsmeyer@gmail.com
  *
  *  This file is part of ServoEasing https://github.com/ArminJo/ServoEasing.
@@ -58,6 +59,8 @@
 
 Servo ServoUnderTest;
 
+#define START_DEGREE_VALUE  0 // The degree value written to the servo at time of attach.
+
 #define STR_HELPER(x) #x
 #define STR(x) STR_HELPER(x)
 
@@ -65,7 +68,7 @@ void setup() {
     pinMode(LED_BUILTIN, OUTPUT);
     Serial.begin(115200);
 #if defined(__AVR_ATmega32U4__) || defined(SERIAL_USB) || defined(SERIAL_PORT_USBVIRTUAL)  || defined(ARDUINO_attiny3217)
-    delay(2000); // To be able to connect Serial monitor after reset or power up and before first printout
+    delay(4000); // To be able to connect Serial monitor after reset or power up and before first print out. Do not wait for an attached Serial Monitor!
 #endif
     // Just to know which program is running on my Arduino
     Serial.println(F("START " __FILE__ "\r\nVersion " VERSION_EXAMPLE " from " __DATE__));
