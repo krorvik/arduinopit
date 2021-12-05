@@ -3,7 +3,7 @@
 #include "FastAccelStepper.h"
 #include "ESPRotary.h"
 #include "Button2.h"
-/*#include <SPI.h>
+#include <SPI.h>
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
@@ -13,7 +13,7 @@
 #define SCREEN_HEIGHT 32 // OLED display height, in pixels
 #define I2C_DISPLAY_ADDRESS 0x3c
 #define OLED_RESET     -1
-*/
+
 // Stepper
 #define STP_RES_FULL 720
 #define MICROSTEPS 8
@@ -50,7 +50,7 @@ long airspeedPos = 0;
 unsigned int airspeed = 0;
 
 
-// Adafruit_SSD1306 display_alt(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+Adafruit_SSD1306 display_alt(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 FastAccelStepperEngine engine = FastAccelStepperEngine();
 
 FastAccelStepper *airspeedStepper = NULL;
@@ -89,7 +89,6 @@ void setAlt() {
   }
 }
 
-/*
 void displayInit() {
   if (not isInitialized) {
     display_alt.clearDisplay();
@@ -113,7 +112,6 @@ void displayAlt() {
     display_alt.display();
   }
 }
-*/
 
 // Helpers
 int32_t translateDigit(unsigned int value) {
@@ -179,10 +177,10 @@ void startButtonLongClick(Button2 button) {
     isInitialized = true;
     altStepper->move(1000);
     airspeedStepper->move(1000);
-    delay(1000);
+    delay(500);
     altStepper->move(-1000);
     airspeedStepper->move(-1000);
-    delay(1000);
+    delay(500);
     // Reset positions for steppers
     altStepper->setCurrentPosition(0);
     airspeedStepper->setCurrentPosition(0);
@@ -235,20 +233,18 @@ DcsBios::IntegerBuffer UpdateCounterBuffer(0xfffe, 0x00ff, 0, onUpdateCounterCha
 void setup() {
   engine.init();
   // Init displays
-  /*Wire.begin();
-  display_alt.begin(SSD1306_SWITCHCAPVCC, I2C_DISPLAY_ADDRESS);*/
+  Wire.begin();
+  display_alt.begin(SSD1306_SWITCHCAPVCC, I2C_DISPLAY_ADDRESS);
 
   altStepper = engine.stepperConnectToPin(altStepPin);
   altStepper->setDirectionPin(altDirPin);
   altStepper->setSpeedInHz(STP_HZ);
   altStepper->setAcceleration(30000);
-  //altStepper->setCurrentPosition(0);
 
   airspeedStepper = engine.stepperConnectToPin(airspeedStepPin);
   airspeedStepper->setDirectionPin(airspeedDirPin);
   airspeedStepper->setSpeedInHz(STP_HZ);
   airspeedStepper->setAcceleration(30000);
-  //airspeedStepper->setCurrentPosition(0);
 
   altPos = altEncoder.getPosition();
   altEncoder.setChangedHandler(setAlt);
@@ -263,7 +259,7 @@ void setup() {
   resetButton.setLongClickTime(2000);
   resetButton.setLongClickDetectedHandler(resetButtonLongClick);
 
-  //displayInit();
+  displayInit();
   
   DcsBios::setup();
 }
@@ -274,4 +270,5 @@ void loop() {
   startButton.loop();
   altEncoder.loop();
   airspeedEncoder.loop();  
+  displayAlt();
 }
