@@ -30,12 +30,12 @@ const unsigned int bankDirPin = 12;
 // Other assigmments matching PCB, but must rename
 const unsigned int pitchSetPins[] = {2,3};
 const unsigned int bankSetPins[] = {4,5};
-const unsigned int thirdSetPins[] = {6,7};
-const unsigned int fourthSetPins[] = {8,13};
-const unsigned int button1pin = A0;
-const unsigned int button2pin = A1;
-const unsigned int button3pin = A2;
-const unsigned int button4pin = A3;
+//const unsigned int thirdSetPins[] = {6,7};
+//const unsigned int fourthSetPins[] = {8,13};
+const unsigned int startButtonPin = A0;
+const unsigned int resetButtonPin = A1;
+//const unsigned int button3pin = A2;
+//const unsigned int button4pin = A3;
 
 // servo positions
 const unsigned int flag_servos_hidden[4] = {360, 365, 340, 335};
@@ -43,14 +43,7 @@ const unsigned int flag_servos_visible[4] = {220, 530, 180, 500};
 
 char baro_digits[4] = { '2', '9', '9', '2'};
 
-// Useful
-bool wow_nose = true;
-bool wow_right = true;
-bool wow_left = true;
-
-bool isWow() {
-  return wow_nose and wow_left and wow_right;
-}
+bool isInitialized = false;
 
 Adafruit_SSD1306 display_baro(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 FastAccelStepperEngine engine = FastAccelStepperEngine();
@@ -59,14 +52,29 @@ FastAccelStepper *bankStepper = NULL;
 ESPRotary pitchEncoder(pitchSetPins[0], pitchSetPins[1]);
 ESPRotary bankEncoder(bankSetPins[0], bankSetPins[1]);
 Adafruit_PWMServoDriver servos = Adafruit_PWMServoDriver();
+Button2 startButton;
+Button2 resetButton;
+
+void displayInit() {
+  if (not isInitialized) {
+    display_baro.clearDisplay();
+    display_baro.setTextSize(2);
+    display_baro.setTextColor(WHITE);
+    display_baro.setCursor(40, 6);
+    display_baro.println(F("XXXX"));
+    display_baro.display();
+  }
+}
 
 void displayBaro() {
-  display_baro.clearDisplay();
-  display_baro.setTextSize(2);
-  display_baro.setTextColor(WHITE);
-  display_baro.setCursor(40, 6);
-  display_baro.println(String(baro_digits).substring(0,4));
-  display_baro.display();
+  if (isInitialized) {
+    display_baro.clearDisplay();
+    display_baro.setTextSize(2);
+    display_baro.setTextColor(WHITE);
+    display_baro.setCursor(40, 6);
+    display_baro.println(String(baro_digits).substring(0,4));
+    display_baro.display();
+  }
 }
 
 int32_t translateDigit(unsigned int value) {
@@ -103,11 +111,13 @@ void onAdiBankChange(unsigned int newValue) {
 }
 
 void moveBankStepper() {
-  bankStepper->moveTo(-1 * STP_RES * bankRotations + map(rawBank, 0, 65535, 800, -800));
+  if (isInitialized) {
+    bankStepper->moveTo(-1 * STP_RES * bankRotations + map(rawBank, 0, 65535, 800, -800));
+  }
 }
 
 void setBank() {
-  if (isWow()) {
+  if (not isInitialized) {
     long newPos = bankEncoder.getPosition();
     long diff = newPos - bankEncPos;
     bankStepper->move(diff * 2);
@@ -117,7 +127,7 @@ void setBank() {
 }
 
 void setPitch() {
-  if (isWow()) {
+  if (not isInitialized) {
     long newPos = pitchEncoder.getPosition();
     long diff = newPos - pitchEncPos;
     pitchStepper->move(diff * 20);
@@ -131,21 +141,41 @@ void onAdiPitchChange(unsigned int newValue) {
 }
 
 void movePitchStepper() {
-  // Sliiiiightly different scales... ouch.
-  if (rawPitch <= 32768) {
-    pitchStepper->moveTo(map(rawPitch, 0, 32768, -6000, 0));
-  } else {
-    pitchStepper->moveTo(map(rawPitch, 32768, 65535, 0, 5500));
+  if (isInitialized) {
+    // Sliiiiightly different scales... ouch.
+    if (rawPitch <= 32768) {
+      pitchStepper->moveTo(map(rawPitch, 0, 32768, -6000, 0));
+    } else {
+      pitchStepper->moveTo(map(rawPitch, 32768, 65535, 0, 5500));
+    }
   }
 }
 
+void startButtonLongClick(Button2 button) {  
+  if (not isInitialized) {
+    isInitialized = true;
+    bankStepper->move(1000);
+    pitchStepper->move(1000);
+    delay(500);
+    bankStepper->move(-1000);
+    pitchStepper->move(-1000);
+    delay(500);
+    // Reset positions for steppers
+    bankStepper->setCurrentPosition(0);
+    pitchStepper->setCurrentPosition(0);
+    //displayAlt();
+  }
+}
+
+void resetButtonLongClick(Button2 button) {
+  if (isInitialized) {
+    // Reinit requested
+    isInitialized = false;
+    displayInit();
+  }
+}
 
 // DCS bios callbacks
-// Weight on wheels is useful information
-void onExtWowLeftChange(unsigned int newValue) {wow_left = newValue;}
-void onExtWowNoseChange(unsigned int newValue) {wow_nose = newValue;}
-void onExtWowRightChange(unsigned int newValue) {wow_right = newValue; }
-
 //Servos/flags:
 void onAdiLocFlagChange(unsigned int newValue) { servos.setPWM(0, 0, map(newValue, 0,65535, flag_servos_hidden[0], flag_servos_visible[0]));}
 void onAdiAuxFlagChange(unsigned int newValue) { servos.setPWM(1, 0, map(newValue, 0,65535, flag_servos_hidden[1], flag_servos_visible[1])); }
@@ -156,9 +186,6 @@ void onAltPressureDrum1CntChange(unsigned int newValue) { baro_digits[2] = trans
 void onAltPressureDrum2CntChange(unsigned int newValue) { baro_digits[1] = translateDigit(newValue) + '0'; }
 void onAltPressureDrum3CntChange(unsigned int newValue) { baro_digits[0] = translateDigit(newValue) + '0'; }
 
-DcsBios::IntegerBuffer extWowLeftBuffer(0x4514, 0x0800, 11, onExtWowLeftChange);
-DcsBios::IntegerBuffer extWowNoseBuffer(0x4514, 0x0200, 9, onExtWowNoseChange);
-DcsBios::IntegerBuffer extWowRightBuffer(0x4514, 0x0400, 10, onExtWowRightChange);
 DcsBios::IntegerBuffer adiBankBuffer(0x44ae, 0xffff, 0, onAdiBankChange);
 DcsBios::IntegerBuffer adiPitchBuffer(0x44ac, 0xffff, 0, onAdiPitchChange);
 DcsBios::IntegerBuffer adiAuxFlagBuffer(0x44b4, 0xffff, 0, onAdiAuxFlagChange);
@@ -173,9 +200,10 @@ DcsBios::IntegerBuffer altPressureDrum2CntBuffer(0x4492, 0xffff, 0, onAltPressur
 // Hook up stuff to do at end of dcs bios updates (all values are set at this point)
 // Discard the value here, not needed.
 void onUpdateCounterChange(unsigned int newValue) {
-  moveBankStepper();
-  movePitchStepper();
-  displayBaro();
+  if (isInitialized) {
+    moveBankStepper();
+    movePitchStepper();
+  }
 }
 
 DcsBios::IntegerBuffer UpdateCounterBuffer(0xfffe, 0x00ff, 0, onUpdateCounterChange);
@@ -190,14 +218,12 @@ void setup() {
   pitchStepper->setSpeedInHz(STP_HZ * 10); 
   // Heavy axes requires acceleration, same for both makes'em smooth
   pitchStepper->setAcceleration(2000);
-  pitchStepper->setCurrentPosition(0);
   pitchEncPos = pitchEncoder.getPosition();
   pitchEncoder.setChangedHandler(setPitch);
   bankStepper = engine.stepperConnectToPin(bankStepPin);
   bankStepper->setDirectionPin(bankDirPin);
   bankStepper->setSpeedInHz(STP_HZ);    
   bankStepper->setAcceleration(2000);
-  bankStepper->setCurrentPosition(0);
   bankEncPos = bankEncoder.getPosition();
   bankEncoder.setChangedHandler(setBank);
   servos.begin();
@@ -207,13 +233,24 @@ void setup() {
   servos.setPWM(1, 0, flag_servos_hidden[1]);
   servos.setPWM(2, 0, flag_servos_hidden[2]);
   servos.setPWM(3, 0, flag_servos_hidden[3]);
-  displayBaro();
+
+  startButton.begin(startButtonPin);
+  startButton.setLongClickTime(2000);
+  startButton.setLongClickDetectedHandler(startButtonLongClick);
+  
+  resetButton.begin(resetButtonPin);  
+  resetButton.setLongClickTime(2000);
+  resetButton.setLongClickDetectedHandler(resetButtonLongClick);
+  
+  displayInit();
   DcsBios::setup();
 }
 
 void loop() {  
-  //Loop all encoders
-  bankEncoder.loop();
-  pitchEncoder.loop();
   DcsBios::loop();  
+  resetButton.loop();    
+  startButton.loop();
+  bankEncoder.loop();
+  pitchEncoder.loop();  
+  displayBaro();
 }

@@ -42,6 +42,8 @@ int32_t alt_100_steps = 0;
 int32_t alt_1k_steps = 0;
 int32_t alt_10k_steps = 0;
 
+int16_t alt_1 = 0;
+int16_t alt_10 = 0;
 int16_t alt_100 = 0;
 int16_t alt_1k = 0;
 int16_t alt_10k = 0;
@@ -107,7 +109,7 @@ void displayAlt() {
     display_alt.setTextColor(WHITE);
     display_alt.setCursor(20, 7);
     char alt[5];
-    sprintf(alt, "%05d", (10000 * alt_10k + 1000 * alt_1k + 100 * alt_100));
+    sprintf(alt, "%05d", (10000 * alt_10k + 1000 * alt_1k + 100 * alt_100 + 10 * alt_10 + alt_1));
     display_alt.println(alt);
     display_alt.display();
   }
@@ -181,7 +183,12 @@ void startButtonLongClick(Button2 button) {
     altStepper->move(-1000);
     airspeedStepper->move(-1000);
     delay(500);
-    // Reset positions for steppers
+    // Reset altitude and steppers
+    alt_10k = 0;
+    alt_1k = 0;
+    alt_100 = 0;
+    alt_10 = 0;
+    airspeed = 0;
     altStepper->setCurrentPosition(0);
     airspeedStepper->setCurrentPosition(0);
     //displayAlt();
@@ -191,8 +198,8 @@ void startButtonLongClick(Button2 button) {
 void resetButtonLongClick(Button2 button) {
   if (isInitialized) {
     // Reinit requested
-    isInitialized = false;
-    //displayInit();
+    isInitialized = false;    
+    displayInit();
   }
 }
 
@@ -200,7 +207,8 @@ void resetButtonLongClick(Button2 button) {
 void onAlt100FtCntChange(unsigned int newValue) {
   alt_100_steps = (int32_t) map(newValue, 0, 65535, 0, STP_RES);
   alt_100 = translateDigit(newValue);
-
+  // Calculate mods
+  alt_10 = map(newValue % (65535 / 10), 0, 6554, 0, 10);
 }
 void onAlt1000FtCntChange(unsigned int newValue) {  
   alt_1k_steps = translateDigit(newValue) * STP_RES;
@@ -217,9 +225,10 @@ void onAirspeedChange(unsigned int newValue) {
 
 // Hook up stuff to do at end of dcs bios updates (all values are set at this point)
 void onUpdateCounterChange(unsigned int newValue) {
-  airspeedStepper->moveTo(translate_ias(airspeed));
-  altStepper->moveTo((int32_t) (alt_100_steps + alt_1k_steps  + alt_10k_steps));
-  //displayAlt();
+  if (isInitialized) {
+    airspeedStepper->moveTo(translate_ias(airspeed));
+    altStepper->moveTo((int32_t) (alt_100_steps + alt_1k_steps  + alt_10k_steps));
+  }
 }
 
 DcsBios::IntegerBuffer alt100FtCntBuffer(0x448c, 0xffff, 0, onAlt100FtCntChange);
