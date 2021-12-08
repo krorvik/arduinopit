@@ -27,9 +27,9 @@ const unsigned int altDirPin = 12;
 const unsigned int airspeedDirPin = 11;
 
 const unsigned int altSetPins[] = {6, 7};
-const unsigned int baroSetPins[] = {8, 13};
+const unsigned int baroSetPins[] = {5,4};
 const unsigned int airspeedSetPins[] = {2, 3};
-// const unsigned int fourthSetPins[] = {4,5};
+// const unsigned int fourthSetPins[] = {8,13};
 const unsigned int startButtonPin = A0;
 //const unsigned int baroSetButtonPin = A2;
 const unsigned int resetButtonPin = A1;
@@ -51,6 +51,8 @@ int16_t alt_10k = 0;
 long airspeedPos = 0;
 unsigned int airspeed = 0;
 
+long baroPos = 0;
+
 
 Adafruit_SSD1306 display_alt(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 FastAccelStepperEngine engine = FastAccelStepperEngine();
@@ -59,6 +61,7 @@ FastAccelStepper *airspeedStepper = NULL;
 FastAccelStepper *altStepper = NULL;
 ESPRotary airspeedEncoder(airspeedSetPins[0], airspeedSetPins[1]);
 ESPRotary altEncoder(altSetPins[0], altSetPins[1]);
+ESPRotary baroEncoder(baroSetPins[0], baroSetPins[1]);
 Button2 startButton;
 Button2 resetButton;
 
@@ -89,6 +92,20 @@ void setAlt() {
     // Remember new position
     altPos = newAltResetPos;
   }
+}
+
+void setBaro() {
+  // read alt reset encoder
+  // Read new encoder position
+  long newBaroPos = baroEncoder.getPosition();
+  // Get diff
+  long diff = (newBaroPos - baroPos) * 400;
+  char arg[6];
+  sprintf(arg, "%i", diff);
+  // Command change
+  DcsBios::tryToSendDcsBiosMessage("ALT_BARO_SET_KNB", arg);
+  // Remember new position
+  baroPos = newBaroPos;
 }
 
 void displayInit() {
@@ -235,9 +252,7 @@ DcsBios::IntegerBuffer alt100FtCntBuffer(0x448c, 0xffff, 0, onAlt100FtCntChange)
 DcsBios::IntegerBuffer alt1000FtCntBuffer(0x448a, 0xffff, 0, onAlt1000FtCntChange);
 DcsBios::IntegerBuffer alt10000FtCntBuffer(0x4488, 0xffff, 0, onAlt10000FtCntChange);
 DcsBios::IntegerBuffer airspeedBuffer(0x4498, 0xffff, 0, onAirspeedChange);
-DcsBios::RotaryEncoder altBaroSetKnb("ALT_BARO_SET_KNB", "-3200", "+3200", baroSetPins[0], baroSetPins[1]);
 DcsBios::IntegerBuffer UpdateCounterBuffer(0xfffe, 0x00ff, 0, onUpdateCounterChange);
-
 
 void setup() {
   engine.init();
@@ -255,6 +270,8 @@ void setup() {
   airspeedStepper->setSpeedInHz(STP_HZ);
   airspeedStepper->setAcceleration(30000);
 
+  baroPos = baroEncoder.getPosition();
+  baroEncoder.setChangedHandler(setBaro);
   altPos = altEncoder.getPosition();
   altEncoder.setChangedHandler(setAlt);
   airspeedPos = airspeedEncoder.getPosition();
@@ -278,6 +295,7 @@ void loop() {
   resetButton.loop();    
   startButton.loop();
   altEncoder.loop();
+  baroEncoder.loop();
   airspeedEncoder.loop();  
   displayAlt();
 }
