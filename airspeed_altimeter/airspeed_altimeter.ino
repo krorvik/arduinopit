@@ -265,9 +265,9 @@ void setup() {
   resetButton.begin(resetButtonPin);  
   resetButton.setLongClickTime(2000);
   resetButton.setLongClickDetectedHandler(resetButtonLongClick);
-
-  displayInit();
   
+  displayInit();
+  DcsBios::setup();
 }
 
 void loop() {
