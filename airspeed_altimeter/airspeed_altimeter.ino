@@ -234,7 +234,6 @@ DcsBios::IntegerBuffer alt100FtCntBuffer(0x448c, 0xffff, 0, onAlt100FtCntChange)
 DcsBios::IntegerBuffer alt1000FtCntBuffer(0x448a, 0xffff, 0, onAlt1000FtCntChange);
 DcsBios::IntegerBuffer alt10000FtCntBuffer(0x4488, 0xffff, 0, onAlt10000FtCntChange);
 DcsBios::IntegerBuffer airspeedBuffer(0x4498, 0xffff, 0, onAirspeedChange);
-DcsBios::RotaryEncoder altBaroSetKnb("ALT_BARO_SET_KNB", "-3200", "+3200", 5, 4);
 DcsBios::IntegerBuffer UpdateCounterBuffer(0xfffe, 0x00ff, 0, onUpdateCounterChange);
 
 void setup() {
@@ -246,12 +245,12 @@ void setup() {
   altStepper = engine.stepperConnectToPin(altStepPin);
   altStepper->setDirectionPin(altDirPin);
   altStepper->setSpeedInHz(STP_HZ);
-  altStepper->setAcceleration(30000);
+  altStepper->setAcceleration(10000);
 
   airspeedStepper = engine.stepperConnectToPin(airspeedStepPin);
   airspeedStepper->setDirectionPin(airspeedDirPin);
   airspeedStepper->setSpeedInHz(STP_HZ);
-  airspeedStepper->setAcceleration(30000);
+  airspeedStepper->setAcceleration(10000);
   
   altPos = altEncoder.getPosition();
   altEncoder.setChangedHandler(setAlt);
