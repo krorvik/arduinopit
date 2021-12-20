@@ -37,8 +37,8 @@ const unsigned int resetButtonPin = A1;
 //const unsigned int button3pin = A2;
 //const unsigned int button4pin = A3;
 
-
-char baro_digits[4] = { '2', '9', '9', '2'};
+char pneu_char = ' ';
+char baro_digits[4] = { '2', '9', '9', '2',};
 
 bool isInitialized = false;
 
@@ -56,8 +56,8 @@ void displayInit() {
     display_baro.clearDisplay();
     display_baro.setTextSize(2);
     display_baro.setTextColor(WHITE);
-    display_baro.setCursor(40, 6);
-    display_baro.println(F("XXXX"));
+    display_baro.setCursor(0, 6);
+    display_baro.println(F("X XXXX"));
     display_baro.display();
   }
 }
@@ -67,6 +67,8 @@ void displayBaro() {
     display_baro.clearDisplay();
     display_baro.setTextSize(2);
     display_baro.setTextColor(WHITE);
+    display_baro.setCursor(0, 6);
+    display_baro.println(String(pneu_char));
     display_baro.setCursor(40, 6);
     display_baro.println(String(baro_digits).substring(0,4));
     display_baro.display();
@@ -167,6 +169,7 @@ void onAltPressureDrum0CntChange(unsigned int newValue) { baro_digits[3] = trans
 void onAltPressureDrum1CntChange(unsigned int newValue) { baro_digits[2] = translateDigit(newValue) + '0'; }
 void onAltPressureDrum2CntChange(unsigned int newValue) { baro_digits[1] = translateDigit(newValue) + '0'; }
 void onAltPressureDrum3CntChange(unsigned int newValue) { baro_digits[0] = translateDigit(newValue) + '0'; }
+void onAltPneuFlagChange(unsigned int newValue) { if(newValue > 0) { pneu_char = 'P'; } else { pneu_char = ' '; } }
 
 DcsBios::IntegerBuffer adiBankBuffer(0x44ae, 0xffff, 0, onAdiBankChange);
 DcsBios::IntegerBuffer adiPitchBuffer(0x44ac, 0xffff, 0, onAdiPitchChange);
@@ -174,6 +177,7 @@ DcsBios::IntegerBuffer altPressureDrum0CntBuffer(0x448e, 0xffff, 0, onAltPressur
 DcsBios::IntegerBuffer altPressureDrum1CntBuffer(0x4490, 0xffff, 0, onAltPressureDrum1CntChange);
 DcsBios::IntegerBuffer altPressureDrum3CntBuffer(0x4494, 0xffff, 0, onAltPressureDrum3CntChange);
 DcsBios::IntegerBuffer altPressureDrum2CntBuffer(0x4492, 0xffff, 0, onAltPressureDrum2CntChange);
+DcsBios::IntegerBuffer altPneuFlagBuffer(0x4496, 0xffff, 0, onAltPneuFlagChange);
 
 // Hook up stuff to do at end of dcs bios updates (all values are set at this point)
 // Discard the value here, not needed.

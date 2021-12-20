@@ -4,11 +4,10 @@
 #include "ESPRotary.h"
 #include "Button2.h"
 
-
 // Stepper
 #define STP_RES_FULL 720
 #define MICROSTEPS 8
-const unsigned int STP_HZ  = 1200 * MICROSTEPS;
+const unsigned int STP_HZ  = 400 * MICROSTEPS;
 const int32_t STP_RES = STP_RES_FULL * MICROSTEPS;
 
 // Pins, all here for easy reading
@@ -18,7 +17,7 @@ const unsigned int cmpDirPin = 12;
 // ENC0 per breakout PCB
 const unsigned int cmpSetPins[] = {2,3};
 // ENC1 inner, ENC2 middle, STP0 middle pins
-const unsigned int pwmPins[] = {5,6,9};
+const unsigned int pwmPins[] = {5,6,11};
 
 // A0 header on board
 const unsigned int cmpButtonPin = A0;
@@ -27,8 +26,9 @@ bool isInitialized = false;
 
 long cmpPos = 0;
 unsigned int heading = 0;
+unsigned int heading_fraction = 0;
 long rotations = 0;
-unsigned int primaryConsolesBrt = 175;
+unsigned int primaryConsolesBrt = 32;
 
 FastAccelStepperEngine engine = FastAccelStepperEngine();
 
@@ -53,30 +53,24 @@ void setCmp() {
 void cmpButtonLongClick(Button2 button) {  
   if (not isInitialized) {
     isInitialized = true;
-    cmpStepper->move(1000);
+    cmpStepper->move(-200);
     delay(500);
-    cmpStepper->move(-1000);
-    delay(500);
+    cmpStepper->move(200);
+    delay(2000);
     // Reset altitude and steppers    
     cmpPos = 0;
     cmpStepper->setCurrentPosition(0);
   } else {
     isInitialized = false;
-    cmpStepper->move(-1000);
+    cmpStepper->move(200);
     delay(500);
-    cmpStepper->move(1000);
-    delay(500);
+    cmpStepper->move(-200);
+    delay(2000);
+    cmpPos = 0;
+    cmpStepper->setCurrentPosition(0);
   }
 }
 
-void onUpdateCounterChange(unsigned int newValue) {
-  if (isInitialized) {
-    cmpStepper->moveTo(STP_RES * rotations + map(heading, 0, 360, 0, STP_RES));
-  }
-  for(int i = 0; i < 3; i++) {
-    analogWrite(pwmPins[i], primaryConsolesBrt);  
-  }
-}
 
 void onHdgDegChange(unsigned int newValue) {
   // Increasing zero cross?
@@ -86,10 +80,24 @@ void onHdgDegChange(unsigned int newValue) {
   heading = newValue;
 }
 
-void onPriConsolesBrtKnbChange(unsigned int newValue) { primaryConsolesBrt = map(newValue, 0, 65535, 128, 255); }
+void onHdgDegFracChange(unsigned int newValue) {
+  heading_fraction = newValue;
+}
 
-DcsBios::IntegerBuffer priConsolesBrtKnbBuffer(0x440e, 0xffff, 0, onPriConsolesBrtKnbChange);
+void onPriConsolesBrtKnbChange(unsigned int newValue) { primaryConsolesBrt = map(newValue, 0, 65535, 0, 255); }
+
+void onUpdateCounterChange(unsigned int newValue) {
+  if (isInitialized) {
+    cmpStepper->moveTo(STP_RES * rotations + map(heading, 0, 360, 0, STP_RES));
+    for(int i = 0; i < 3; i++) {
+      analogWrite(pwmPins[i], primaryConsolesBrt);  
+    }
+  }  
+}
+
 DcsBios::IntegerBuffer hdgDegBuffer(0x0436, 0x01ff, 0, onHdgDegChange);
+DcsBios::IntegerBuffer hdgDegFracBuffer(0x0436, 0xfe00, 9, onHdgDegFracChange);
+DcsBios::IntegerBuffer priConsolesBrtKnbBuffer(0x440e, 0xffff, 0, onPriConsolesBrtKnbChange);
 DcsBios::IntegerBuffer UpdateCounterBuffer(0xfffe, 0x00ff, 0, onUpdateCounterChange);
 
 void setup() {
@@ -98,7 +106,9 @@ void setup() {
   cmpStepper = engine.stepperConnectToPin(cmpStepPin);
   cmpStepper->setDirectionPin(cmpDirPin);
   cmpStepper->setSpeedInHz(STP_HZ);
-  cmpStepper->setAcceleration(10000);
+  cmpStepper->setAcceleration(5000);
+  cmpPos = 0;
+  cmpStepper->setCurrentPosition(0);
 
   cmpPos = cmpEncoder.getPosition();
   cmpEncoder.setChangedHandler(setCmp);  
@@ -111,16 +121,12 @@ void setup() {
   for(int i = 0; i < 3; i++) {
     pinMode(pwmPins[i], OUTPUT);
     analogWrite(pwmPins[i], primaryConsolesBrt);
-  }
-  
+  }  
   DcsBios::setup();
 }
 
 void loop() {
-  if (isInitialized) {
-    DcsBios::loop();
-  } else {
-    cmpEncoder.loop();
-  }
+  DcsBios::loop();
+  cmpEncoder.loop();
   cmpButton.loop();     
 }
